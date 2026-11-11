@@ -15,7 +15,7 @@ sudo pacman -S --needed rust webkit2gtk-4.1 gtk3   # usually already present
 desktop/scripts/install-linux.sh
 ```
 
-This builds a release binary and installs it for your user only:
+This builds a release binary (cargo output goes to `~/.cache/learnharness-desktop/target`, outside the checkout) and installs it for your user only:
 - `~/.local/bin/learnharness`;
 - a **LearnHarness** launcher entry;
 - the icon.
@@ -69,9 +69,12 @@ The client stores its choice in `connection.json` in its config folder:
 
 ```sh
 cd desktop
+export CARGO_TARGET_DIR=~/.cache/learnharness-desktop/target   # keep build output out of the repo
 cargo test          # unit tests: address normalizing, proxy guard, sign-in parsing
 cargo run           # debug build
 ```
+
+Keep the cargo target directory outside the checkout. A `desktop/target` inside it makes `next build` much slower, because the build walks the whole project for file tracing; `desktop/` is excluded from the standalone output in `next.config.ts`.
 
 Debug builds also accept two variables for checking a live window without devtools:
 - `LH_DESKTOP_PROBE=<file.js>` runs a script on the server page. It reports by navigating to `http://lh-report.invalid/?<text>`, which is printed to stdout.

@@ -16,8 +16,11 @@ if [[ "${1:-}" == "--uninstall" ]]; then
 	exit 0
 fi
 
+# Build outside the repo: a cargo target dir inside the checkout slows
+# `next build` (it walks the whole project for tracing).
+export CARGO_TARGET_DIR="${CARGO_TARGET_DIR:-${XDG_CACHE_HOME:-$HOME/.cache}/learnharness-desktop/target}"
 (cd "$here" && cargo build --release --locked)
-install -Dm755 "$here/target/release/learnharness" "$bin"
+install -Dm755 "$CARGO_TARGET_DIR/release/learnharness" "$bin"
 install -Dm644 "$here/icons/icon.png" "$icon"
 mkdir -p "$(dirname "$app")"
 cat > "$app" <<DESKTOP

@@ -61,6 +61,7 @@ Four features were added on top of upstream LearnHarness 0.6.0. Branches are sta
   - Windows: `.github/workflows/desktop-tauri.yml` (NSIS). Not built locally; it only type-checks with the official rustc plus the `x86_64-pc-windows-msvc` rust-std, because Arch's rustc can't use the official std.
   - TLS is `native-tls`; rustls' aws-lc needs a C toolchain for Windows.
   - Debug-only verification seams: `LH_DESKTOP_PROBE`, `LH_DESKTOP_SNAPSHOT`.
+  - Keep `CARGO_TARGET_DIR` outside the repo (the install script uses `~/.cache/learnharness-desktop/target`). An in-repo `desktop/target` roughly doubles `next build` time through whole-project tracing.
 - Note: `/api/events` sends no headers until its first frame (25 s heartbeat) under `next start`, so EventSource `onopen` fires late. This is pre-existing server behavior, not the proxy.
 
 ## Working notes
