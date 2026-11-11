@@ -45,7 +45,7 @@ export function findWhisperBinary(env: Record<string, string | undefined> = proc
 	if (explicit) return isExecutable(explicit) ? explicit : null;
 	for (const dir of (env.PATH ?? "").split(path.delimiter).filter(Boolean)) {
 		for (const name of BINARY_NAMES) {
-			const candidate = path.join(dir, name);
+			const candidate = path.join(/* turbopackIgnore: true */ dir, name);
 			if (isExecutable(candidate)) return candidate;
 		}
 	}
@@ -80,7 +80,7 @@ export interface WhisperManagerOptions {
 
 /** One resident whisper-server at a time, keyed by binary + model. */
 export function createWhisperManager(options: WhisperManagerOptions = {}) {
-	const spawnProcess = options.spawnProcess ?? ((binary, args) => spawn(binary, args, { stdio: ["ignore", "pipe", "pipe"] }));
+	const spawnProcess = options.spawnProcess ?? ((binary, args) => spawn(/* turbopackIgnore: true */ binary, args, { stdio: ["ignore", "pipe", "pipe"] }));
 	const fetchLike = options.fetchLike ?? fetch;
 	const idleMs = options.idleMs ?? WHISPER_IDLE_MS;
 	const startTimeoutMs = options.startTimeoutMs ?? WHISPER_START_TIMEOUT_MS;
