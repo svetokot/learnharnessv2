@@ -57,6 +57,8 @@ const nextConfig: NextConfig = {
 			"github-copilot-credentials.json*",
 			"xai-credentials.json*",
 			".env*",
+			// The Tauri client (Rust sources + multi-GB cargo target dir).
+			"desktop/**/*",
 		],
 	},
 	// Empirically verified gaps (2026-09-17 standalone smoke): the tracer

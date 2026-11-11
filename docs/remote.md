@@ -48,6 +48,8 @@ loginctl enable-linger "$USER"   # keep it running while you are logged out
 
 ## On your computer
 
+On Windows and Linux you can use the small native client instead of the Electron app: see [Desktop client (Tauri)](desktop-client.md). It shows a connect page on launch when the server is unreachable, and uses the same **Settings → General → Server** row.
+
 1. Open the desktop app → **Settings → General → Server**.
 2. Choose **Remote server**, enter the address (for example `http://192.168.1.20:3000`), and press **Test**.
 3. Press **Apply & restart**.

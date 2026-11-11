@@ -1,0 +1,8 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "server-page",
+  "description": "The LearnHarness page served through the loopback proxy. The window can only navigate to the proxy origin (on_navigation in src/main.rs).",
+  "windows": ["main"],
+  "remote": { "urls": ["http://127.0.0.1:*"] },
+  "permissions": ["allow-connection-get", "allow-connection-test", "allow-connection-apply", "allow-open-subscription-browser", "allow-expand-window", "allow-set-appearance"]
+}

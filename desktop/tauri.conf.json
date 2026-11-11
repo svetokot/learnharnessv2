@@ -1,0 +1,27 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "LearnHarness",
+  "mainBinaryName": "learnharness",
+  "version": "0.6.0",
+  "identifier": "dev.learnharness.desktop",
+  "build": { "frontendDist": "ui" },
+  "app": {
+    "windows": [],
+    "security": { "csp": null }
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "category": "Education",
+    "shortDescription": "LearnHarness desktop client",
+    "longDescription": "Connects to a LearnHarness server (this computer or one on your network) and shows it in a native window.",
+    "license": "AGPL-3.0-only",
+    "icon": ["icons/icon.png", "icons/icon.ico"],
+    "windows": {
+      "nsis": { "installMode": "currentUser" }
+    },
+    "linux": {
+      "deb": { "depends": ["libwebkit2gtk-4.1-0", "libgtk-3-0"] }
+    }
+  }
+}

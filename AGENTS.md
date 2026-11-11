@@ -51,6 +51,18 @@ Four features were added on top of upstream LearnHarness 0.6.0. Branches are sta
 - Default theme = warm charcoal with a brass accent; its emphasis inks equal the text color (owner ruling). `Paper` is the light preset; `Classic` is the original palette.
 - `app/globals.css` `:root` must equal `themeVars(DEFAULT_THEME)` (`tests/themes.test.ts`), and `electron/appearance-chrome.cjs` `PRESET_APPEARANCE` must list every preset.
 
+## Native desktop client (Tauri)
+- `desktop/` (Rust, Tauri 2.12, pinned crates) replaces Electron on Windows and Linux by owner request. Electron is kept as-is. The client is **client only** (owner decision): it never spawns a server. "This computer" = `http://127.0.0.1:3000`. Docs: `docs/desktop-client.md`.
+- The window loads a loopback reverse proxy (`desktop/src/proxy.rs`, persisted port), so LAN plain-HTTP servers are secure contexts and the mic works. This was verified in WebKitGTK; LAN origins are NOT secure there otherwise.
+  - The proxy only accepts its own Host/Origin, and rewrites Origin/Referer/Location.
+- `window.lh` is `desktop/src/bridge.js`. It reports `remote: true` and `subscriptionTransport: "web"`, and has no path bridge and no updater. Command access for the page is in `desktop/capabilities/*.json` and the command list in `desktop/build.rs`; keep them in sync.
+- Builds and checks:
+  - Linux: `desktop/scripts/install-linux.sh` (→ `~/.local`).
+  - Windows: `.github/workflows/desktop-tauri.yml` (NSIS). Not built locally; it only type-checks with the official rustc plus the `x86_64-pc-windows-msvc` rust-std, because Arch's rustc can't use the official std.
+  - TLS is `native-tls`; rustls' aws-lc needs a C toolchain for Windows.
+  - Debug-only verification seams: `LH_DESKTOP_PROBE`, `LH_DESKTOP_SNAPSHOT`.
+- Note: `/api/events` sends no headers until its first frame (25 s heartbeat) under `next start`, so EventSource `onopen` fires late. This is pre-existing server behavior, not the proxy.
+
 ## Working notes
 - Test baseline: `npm test` has **4 known failures**, the plugin-SDK type tests (`plugin-view-types`, `plugin-document-types`, ~44s each). They fail on clean upstream main too.
 - `npm ci` blocks install scripts for esbuild, unrs-resolver, protobufjs, electron-winstaller and @google/genai. Nothing needed them so far; approving them is the owner's call.

@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>LearnHarness</title>
+<style>
+	:root {
+		color-scheme: dark;
+		--bg: #1b1a17; --surface: #24221e; --border: #3a372f; --text: #e9e4da; --muted: #a39d90; --accent: #c8a26b; --error: #e07a6a;
+	}
+	* { box-sizing: border-box; }
+	html, body { height: 100%; margin: 0; }
+	body {
+		background: var(--bg); color: var(--text);
+		font: 14px/1.5 "Iowan Old Style", "Palatino Linotype", Palatino, "Book Antiqua", Georgia, serif;
+		display: grid; place-items: center; padding: 24px;
+	}
+	main { width: min(440px, 100%); }
+	h1 { font-size: 22px; font-weight: 600; margin: 0 0 4px; letter-spacing: 0; }
+	.lede { color: var(--muted); margin: 0 0 24px; }
+	#status { min-height: 1.5em; margin: 0 0 20px; }
+	#status.error { color: var(--error); }
+	form { display: grid; gap: 14px; }
+	label { display: grid; gap: 6px; font-weight: 600; font-size: 13px; }
+	select, input {
+		font: 13px ui-monospace, "Cascadia Mono", "DejaVu Sans Mono", monospace;
+		background: var(--surface); color: var(--text); border: 1px solid var(--border);
+		border-radius: 4px; padding: 7px 9px; outline: none;
+	}
+	select:focus, input:focus { border-color: var(--accent); }
+	.row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 4px; }
+	button {
+		font: 600 13px/1 inherit; font-family: inherit; cursor: pointer;
+		padding: 8px 14px; border-radius: 4px; border: 1px solid var(--border);
+		background: transparent; color: var(--text);
+	}
+	button.primary { background: var(--accent); border-color: var(--accent); color: #1b1a17; }
+	button:disabled { opacity: .5; cursor: default; }
+	.hint { color: var(--muted); font-size: 12.5px; margin: 0; }
+	code { font: 12px ui-monospace, monospace; color: var(--text); }
+	[hidden] { display: none !important; }
+</style>
+</head>
+<body>
+<main>
+	<h1>LearnHarness</h1>
+	<p class="lede">Desktop client</p>
+	<p id="status" role="status">Starting…</p>
+	<form id="form" hidden>
+		<label>Server
+			<select id="mode">
+				<option value="local">This computer</option>
+				<option value="remote">Remote server</option>
+			</select>
+		</label>
+		<label id="address-row">Server address
+			<input id="url" type="text" placeholder="http://192.168.1.20:3000" spellcheck="false" autocomplete="off">
+		</label>
+		<p class="hint" id="hint"></p>
+		<div class="row">
+			<button type="button" id="retry">Retry</button>
+			<button type="submit" class="primary" id="save">Save &amp; connect</button>
+		</div>
+	</form>
+</main>
+<script>
+	const invoke = (cmd, args) => window.__TAURI_INTERNALS__.invoke(cmd, args);
+	const $ = (id) => document.getElementById(id);
+	const status = $("status"), form = $("form"), mode = $("mode"), url = $("url");
+	let info = null;
+
+	const say = (text, error = false) => { status.textContent = text; status.classList.toggle("error", error); };
+	const busy = (on) => { for (const b of form.querySelectorAll("button")) b.disabled = on; };
+	const syncMode = () => {
+		$("address-row").hidden = mode.value !== "remote";
+		$("hint").innerHTML = mode.value === "remote"
+			? "A LearnHarness server on your network or VPN, started with <code>npm run start:remote</code>."
+			: `The server on this computer at <code>${info?.local ?? "http://127.0.0.1:3000"}</code>. Start it with <code>npm run start:remote</code> or the systemd service.`;
+	};
+	mode.addEventListener("change", syncMode);
+
+	async function connect() {
+		busy(true);
+		say(`Connecting to ${info.target}…`);
+		try {
+			await invoke("connect");
+		} catch (error) {
+			say(`${info.target}: ${error}`, true);
+			form.hidden = false;
+			busy(false);
+		}
+	}
+
+	$("retry").addEventListener("click", () => void connect());
+	form.addEventListener("submit", async (event) => {
+		event.preventDefault();
+		busy(true);
+		const next = { mode: mode.value, url: url.value.trim() || null };
+		if (next.mode === "remote") {
+			say("Testing…");
+			const result = await invoke("connection_test", { url: next.url ?? "" }).catch((e) => ({ ok: false, error: String(e) }));
+			if (!result.ok) { say(result.error ?? "The server could not be reached.", true); busy(false); return; }
+			next.url = result.url;
+		}
+		say("Saving…");
+		try {
+			await invoke("connection_apply", { next }); // restarts the app
+		} catch (error) {
+			say(String(error), true);
+			busy(false);
+		}
+	});
+
+	(async () => {
+		info = await invoke("connect_info");
+		mode.value = info.saved.mode;
+		url.value = info.saved.url ?? "";
+		syncMode();
+		await connect();
+	})().catch((error) => { say(String(error), true); form.hidden = false; });
+</script>
+</body>
+</html>
