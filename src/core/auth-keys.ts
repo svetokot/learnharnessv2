@@ -37,6 +37,12 @@ export const AUTH_KEYS: readonly AuthKeyInfo[] = [
 		docsUrl: "https://console.deepgram.com/",
 	},
 	{
+		id: "STT_OPENAI_API_KEY",
+		label: "Speech-to-text endpoint",
+		description: "Optional key for the OpenAI-compatible dictation endpoint (leave empty for a local server).",
+		docsUrl: "https://platform.openai.com/docs/api-reference/audio/createTranscription",
+	},
+	{
 		id: "TAVILY_API_KEY",
 		label: "Tavily",
 		description: "Web-search engine for the researcher sub-agent (AI-native search API). Setting the key activates it — no engine toggle needed.",
@@ -203,6 +209,8 @@ export function validateKeyShape(id: string, rawValue: string): KeyShapeResult {
 		case "DEEPGRAM_API_KEY":
 			// No public format — the length floor only catches truncated pastes.
 			return nonEmpty(20);
+		case "STT_OPENAI_API_KEY":
+			return nonEmpty(1);
 		default:
 			return { ok: false, error: `unknown key "${id}" (supported: ${[...AUTH_KEY_IDS].join(", ")})` };
 	}

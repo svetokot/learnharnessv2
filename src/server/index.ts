@@ -67,3 +67,4 @@ export * from "./custom-provider.ts";
 export { customProviderGet, customProviderMutation } from "./custom-provider-http.ts";
 export { saveUploadBatch, claimPendingUploads, sweepPendingUploads, UploadError, MAX_UPLOAD_BATCH_BYTES, MAX_UPLOAD_FILES } from "./uploads.ts";
 export { apiRequestRefusal } from "./desktop-access.ts";
+export { transcribe, whisperStatus, whisperDownloader, whisperManager, SttError, MAX_TRANSCRIBE_BYTES } from "./stt.ts";

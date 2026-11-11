@@ -39,7 +39,13 @@ class AudioGraph {
 	audioWorklet = { addModule: async () => {} };
 	createMediaStreamSource() { return { connect() {}, disconnect() {} }; }
 }
-class Worklet { port = {}; connect() {} disconnect() {} }
+class Worklet {
+	static last: Worklet | undefined;
+	port: { onmessage?: (event: { data: unknown }) => void } = {};
+	constructor() { Worklet.last = this; }
+	connect() {} disconnect() {}
+	audio(...samples: number[]) { this.port.onmessage?.({ data: { type: "audio", buffer: Int16Array.from(samples) } }); }
+}
 
 const globals = globalThis as Record<string, unknown>;
 let restore: (() => void) | undefined;
@@ -56,6 +62,9 @@ async function fixture(language: "pl" | "en" = "pl", delayedRead?: Promise<Respo
 		reads: 0,
 		active: false,
 		captures: 0,
+		engine: "deepgram" as string,
+		transcribed: [] as { url: string; bytes: number }[],
+		nextTranscribe: undefined as Promise<Response> | undefined,
 		stops: 0,
 		appends: [] as string[],
 		claimed: undefined as ((text: string) => void) | undefined,
@@ -73,6 +82,12 @@ async function fixture(language: "pl" | "en" = "pl", delayedRead?: Promise<Respo
 		IS_REACT_ACT_ENVIRONMENT: true,
 		fetch: async (url: string, init?: RequestInit) => {
 			if (url === "/api/stt/token") return Response.json({ token: "test-token" });
+			if (url === "/api/stt/engine") return Response.json({ engine: state.engine });
+			if (url.startsWith("/api/stt/transcribe")) {
+				state.transcribed.push({ url, bytes: (init!.body as Uint8Array).byteLength });
+				if (state.nextTranscribe) { const response = state.nextTranscribe; state.nextTranscribe = undefined; return response; }
+				return Response.json({ text: "whispered words" });
+			}
 			if (url === "/api/settings") {
 				state.reads++;
 				if (state.nextRead) { const response = state.nextRead; state.nextRead = undefined; return response; }
@@ -373,4 +388,46 @@ test("microphone permission resolving after unmount immediately stops the late s
 	assert.equal(f.state.stops, 1);
 	assert.equal(Socket.all.length, 0);
 	assert.equal(isDictationActive(), false);
+});
+
+test("batch engines record the whole run, transcribe once at stop, and never mint a Deepgram token", async () => {
+	const f = await fixture("pl"); f.state.engine = "whisper-local"; await f.mount();
+	await act(async () => { f.dictation.toggle(); });
+	assert.equal(f.dictation.phase, "recording");
+	assert.equal(Socket.all.length, 0, "no Deepgram socket");
+	await act(async () => { Worklet.last!.audio(1, 2, 3); Worklet.last!.audio(4); });
+	let finished = false; let done!: Promise<void>;
+	await act(async () => { done = finishDictation().then(() => { finished = true; }); });
+	await act(async () => { await done; });
+	assert.equal(finished, true, "finish waits for the transcription");
+	assert.equal(f.state.transcribed.length, 1);
+	assert.equal(f.state.transcribed[0]!.url, "/api/stt/transcribe?language=pl");
+	assert.equal(f.state.transcribed[0]!.bytes, 44 + 4 * 2, "a WAV of exactly the captured samples");
+	assert.deepEqual(f.state.appends, ["whispered words"]);
+	assert.equal(f.dictation.phase, "idle");
+});
+
+test("cancel during a batch transcription discards the late text", async () => {
+	const f = await fixture("en"); f.state.engine = "openai"; await f.mount();
+	const pending = deferred<Response>(); f.state.nextTranscribe = pending.promise;
+	await act(async () => { f.dictation.toggle(); });
+	await act(async () => { Worklet.last!.audio(7, 7); });
+	await act(async () => { f.dictation.toggle(); });
+	assert.equal(f.dictation.phase, "stopping");
+	await act(async () => { f.dictation.cancel(); });
+	assert.equal(f.dictation.phase, "idle");
+	await act(async () => { pending.resolve(Response.json({ text: "too late" })); await pending.promise; });
+	assert.deepEqual(f.state.appends, []);
+});
+
+test("a batch transcription failure is shown and appends nothing", async () => {
+	const f = await fixture("en"); f.state.engine = "whisper-local"; await f.mount();
+	f.state.nextTranscribe = Promise.resolve(Response.json({ error: "whisper-server was not found." }, { status: 503 }));
+	await act(async () => { f.dictation.toggle(); });
+	await act(async () => { Worklet.last!.audio(1); });
+	await act(async () => { f.dictation.toggle(); });
+	await act(async () => { await new Promise((resolve) => setTimeout(resolve, 0)); });
+	assert.equal(f.dictation.error, "whisper-server was not found.");
+	assert.deepEqual(f.state.appends, []);
+	assert.equal(f.dictation.phase, "idle");
 });

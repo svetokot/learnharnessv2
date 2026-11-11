@@ -36,6 +36,7 @@ import type { ModelRole } from "../../config.ts";
 import type { ChatSettings } from "./contracts/chat.ts";
 import { isSearchEngineId, type SearchEngineId } from "./search.ts";
 import { isDictationLanguage, type DictationLanguage } from "./dictation.ts";
+import { sanitizeSpeechSettings, type SpeechSettings } from "./speech.ts";
 import { parseFileAccessSettings, type FileAccessSettings } from "./file-access.ts";
 import { COLOR_OVERRIDE_KEYS, isThemeId, type AppearanceColorOverrides } from "./themes.ts";
 
@@ -494,6 +495,8 @@ export interface UserSettings {
 	version: number;
 	general?: GeneralSettings;
 	dictation?: DictationSettings;
+	/** Dictation engine choice and its non-secret config (src/core/speech.ts). */
+	speech?: SpeechSettings;
 	/** Explicit app-wide opt-in; absent/invalid is off, including older records. */
 	claudeCode?: { enabled?: boolean };
 	agent?: AgentSettings;
@@ -872,6 +875,7 @@ export function sanitizeUserSettings(raw: unknown): UserSettings | null {
 			? { language: (raw as DictationSettings).language }
 			: {};
 	}
+	if (r.speech !== undefined) out.speech = sanitizeSpeechSettings(r.speech);
 	if (r.claudeCode !== undefined) {
 		const raw = r.claudeCode;
 		out.claudeCode = raw !== null && typeof raw === "object" && !Array.isArray(raw)

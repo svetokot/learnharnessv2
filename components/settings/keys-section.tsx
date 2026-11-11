@@ -43,6 +43,7 @@ import { isInteractionScopeEligible } from "@/components/plugin-input-focus";
 import { MenuShell } from "@/components/menu-shell";
 import { notifySettingsSaved } from "@/components/settings-signal";
 import { DictationLanguageSetting } from "@/components/dictation-language";
+import { SpeechEngineSettings } from "./speech-settings.tsx";
 
 /** One pi-ai provider with plain API-key auth (the Platform seam —
  *  derived from pi-ai's own env-key table; no drift possible). */
@@ -83,6 +84,8 @@ async function readCustomStatus(inspectKey = false): Promise<CustomStatus> {
  *  2026-09-20: the Google CSE pair retired, Tavily + Brave joined) — the
  *  section can never drift from core/auth-keys.ts again. */
 const TOOL_IDS = AUTH_KEYS.map((k) => k.id) as readonly string[];
+/** Keys shown in the Dictation group rather than Search. */
+const DICTATION_KEY_IDS: readonly string[] = ["DEEPGRAM_API_KEY", "STT_OPENAI_API_KEY"];
 
 /** The custom endpoint's synthetic Add-provider entry (offered only while unconfigured). */
 export const CUSTOM_PROVIDER_INFO: ProviderKeyInfo = {
@@ -581,7 +584,7 @@ export function KeysSection({
 			</SettingsGroup>
 
 			{(["Dictation", "Search"] as const).map((label) => <SettingsGroup key={label} label={label} testid={label === "Dictation" ? "group-dictation" : "group-search"}>
-				{toolRows.filter((status) => label === "Dictation" ? status.id === "DEEPGRAM_API_KEY" : status.id !== "DEEPGRAM_API_KEY").map((status) => (
+				{toolRows.filter((status) => label === "Dictation" ? DICTATION_KEY_IDS.includes(status.id) : !DICTATION_KEY_IDS.includes(status.id)).map((status) => (
 					<KeyTableRow
 						key={status.id}
 						label={status.info?.label ?? status.id}
@@ -609,6 +612,7 @@ export function KeysSection({
 							className="underline underline-offset-2 hover:text-foreground"
 						>Deepgram API key</a> with the Member role or higher, then add it above.
 					</p>
+					<SpeechEngineSettings />
 				</>}
 			</SettingsGroup>)}
 

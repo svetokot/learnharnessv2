@@ -33,6 +33,15 @@ Sessions are saved locally, including earlier messages when context is compacted
 
 Audio streams from your browser directly to Deepgram using a short-lived token. A `403 Insufficient permissions` error while obtaining that token can mean the key's role is insufficient.
 
+### Other engines: local Whisper or an OpenAI-compatible endpoint
+
+**Settings → Providers → Dictation → Engine** switches dictation away from Deepgram. These engines record the whole dictation and transcribe it once when you stop (the text appears then, as with Deepgram). Audio goes from your browser to the LearnHarness server, which passes it to the engine. Recordings are limited to about 26 minutes.
+
+- **Local Whisper (whisper.cpp).** Install whisper.cpp **on the server machine** so `whisper-server` is on the server's `PATH` (Arch/CachyOS with an NVIDIA GPU: the AUR package `whisper.cpp-cuda`; or set `LH_WHISPER_SERVER=/path/to/whisper-server`). Pick a model and press **Download**; models are saved under `data/whisper/models/`. The default, `large-v3-turbo (q5_0)` (≈ 550 MB), runs comfortably on a 6 GB GPU. LearnHarness starts `whisper-server` on 127.0.0.1 at the first dictation (the first one after a pause takes a few seconds longer while the model loads) and stops it after 10 idle minutes to free GPU memory. The executable is deliberately not a setting: the API has no login, and anyone on the network could otherwise make the server run a program.
+- **OpenAI-compatible endpoint.** Any `/v1/audio/transcriptions` server: speaches/faster-whisper-server, LocalAI, Groq, or OpenAI. Enter the base URL (ending in `/v1`) and model name; put a key in the **Speech-to-text endpoint** row if the service needs one.
+
+The language setting applies to every engine. **Multilingual** becomes Whisper's automatic detection; regional variants use their base language.
+
 ## Use local files in a session
 
 In the desktop app, use the paperclip's **Files** or **Folder** choice, or drag files/folders into the content area, to insert their local paths. Files supports any file type and multiple selections; Folder attaches one directory path, including an empty folder, without expanding or reading its contents. Newly picked or dropped known folders get a trailing directory separator so their Folder icon survives saved messages and reloads; files stay unchanged. Older unmarked paths are not retrospectively classified. The agent can then locate/read supported content on the machine running LearnHarness under the existing file-access guards; attaching a path does not grant permissions. This is **not an upload**: originals stay where they are.

@@ -32,6 +32,7 @@ import { BACKGROUND_MODEL_ROLES, CACHE_RETENTIONS, COMPACTION_THRESHOLD_FLOOR, C
 import { WRITABLE_TOOL_KEYS } from "../core/pending.ts";
 import { isSearchEngineId, SEARCH_ENGINES } from "../core/search.ts";
 import { isDictationLanguage } from "../core/dictation.ts";
+import { isSpeechEngine, isWhisperModel, normalizeSpeechBaseUrl, type SpeechSettings } from "../core/speech.ts";
 import { parseFileAccessSettings } from "../core/file-access.ts";
 
 /** Parsed-or-rejected — `ok: false` carries the 400's error message. */
@@ -448,6 +449,31 @@ export function parseDictationSettingsBody(body: unknown): SettingsBodyResult<Di
 	return { ok: true, settings: { language: raw.language } };
 }
 
+/** speech: { engine?, whisperModel?, openaiBaseUrl?, openaiModel? } — strict. */
+export function parseSpeechSettingsBody(body: unknown): SettingsBodyResult<SpeechSettings> {
+	const raw = asRecord(body);
+	if (!raw) return { ok: false, error: "Invalid JSON body" };
+	const settings: SpeechSettings = {};
+	if (raw.engine !== undefined) {
+		if (!isSpeechEngine(raw.engine)) return { ok: false, error: "Unsupported dictation engine" };
+		settings.engine = raw.engine;
+	}
+	if (raw.whisperModel !== undefined) {
+		if (!isWhisperModel(raw.whisperModel)) return { ok: false, error: "Unsupported Whisper model" };
+		settings.whisperModel = raw.whisperModel;
+	}
+	if (raw.openaiBaseUrl !== undefined && raw.openaiBaseUrl !== "") {
+		const base = normalizeSpeechBaseUrl(raw.openaiBaseUrl);
+		if (!base) return { ok: false, error: "The endpoint must be an http(s) URL without credentials, query or fragment" };
+		settings.openaiBaseUrl = base;
+	}
+	if (raw.openaiModel !== undefined && raw.openaiModel !== "") {
+		if (typeof raw.openaiModel !== "string" || raw.openaiModel.trim().length === 0 || raw.openaiModel.length > 200) return { ok: false, error: "The model must be a short name" };
+		settings.openaiModel = raw.openaiModel.trim();
+	}
+	return { ok: true, settings };
+}
+
 /** The custom endpoint's per-model pins (PATCH /api/custom-provider): the
  *  whole desired map, replace-whole like every section. Strict write side — a
  *  token count must be a whole number at or above the floor (the read side
@@ -499,6 +525,7 @@ export const SETTINGS_SECTIONS = {
 	models: parseModelsSettingsBody,
 	dictation: parseDictationSettingsBody,
 	claudeCode: parseClaudeCodeSettingsBody,
+	speech: parseSpeechSettingsBody,
 } as const;
 
 export type SettingsSectionName = keyof typeof SETTINGS_SECTIONS;

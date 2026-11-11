@@ -8,6 +8,7 @@ import { deepgramListenUrl, type DictationLanguage } from "@/src/core";
 import { useDictationLanguage } from "@/components/dictation-preference";
 import { setDictationActive } from "@/components/dictation-state";
 import { dispatchFocusedPluginShortcut } from "@/components/plugin-input-focus";
+import { encodeWav, knownSpeechEngine, MAX_RECORDING_SAMPLES, readSpeechEngine, transcribeRecording } from "@/components/speech-engine";
 export { isDictationActive } from "@/components/dictation-state";
 
 /**
@@ -197,6 +198,12 @@ export function createWarmMinter(
 }
 
 const warmTokens = createWarmMinter(mintFreshToken);
+/** Pre-mint only for Deepgram (or before the engine is known): the other
+ *  engines never use a token, and must not surface its keyless path. */
+function refreshWarmToken() {
+	const engine = knownSpeechEngine();
+	if (engine === null || engine === "deepgram") warmTokens.refresh();
+}
 
 /* Persistent capture graph (mitigation C, owner 2026-09-27): one
  * app-lifetime AudioContext + a module-load memo. Created under the
@@ -384,6 +391,11 @@ export function useDictation({ append, destination = "primary", disabled = false
 	 *  cleared at teardown so a dead run's audio can't leak into the next. */
 	const pendingRef = useRef<ArrayBuffer[]>([]);
 	const genRef = useRef(0); // stale-handler guard (dictate pattern)
+	/** Batch engines (Local Whisper, OpenAI-compatible — STT wave 2): the
+	 *  run's captured frames, non-null exactly while such a run records.
+	 *  Stop transcribes them once on the server; the text lands in
+	 *  bufferRef and flushes through the same cleanup as Deepgram's finals. */
+	const batchRef = useRef<{ frames: Int16Array[]; samples: number; language: DictationLanguage } | null>(null);
 	const safetyRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 	const reconnectsRef = useRef(0);
 	/** The deferred transcript (owner round 2): finals land here during the
@@ -424,6 +436,7 @@ export function useDictation({ append, destination = "primary", disabled = false
 			safetyRef.current = null;
 		}
 		pendingRef.current = [];
+		batchRef.current = null;
 		for (const track of streamRef.current?.getTracks() ?? []) track.stop();
 		streamRef.current = null;
 		sourceRef.current?.disconnect();
@@ -455,7 +468,7 @@ export function useDictation({ append, destination = "primary", disabled = false
 				if (failed) waiter.reject(failed.error);
 				else waiter.resolve();
 			}
-			if (warmNext) warmTokens.refresh();
+			if (warmNext) refreshWarmToken();
 		};
 		if (appended && typeof (appended as PromiseLike<unknown>).then === "function") {
 			appendPendingRef.current = true;
@@ -559,6 +572,10 @@ export function useDictation({ append, destination = "primary", disabled = false
 			return;
 		}
 		if (gen !== genRef.current) return;
+		const engine = await readSpeechEngine();
+		if (gen !== genRef.current) return;
+		const batch = engine !== "deepgram";
+		batchRef.current = batch ? { frames: [], samples: 0, language } : null;
 
 		// Mitigation D: the warm token (pre-minted at mount / after the last
 		// run) resolves ~instantly; a cold/keyless mint surfaces below. The
@@ -566,7 +583,7 @@ export function useDictation({ append, destination = "primary", disabled = false
 		// the token runs concurrently with it. 127.0.0.1 is a secure
 		// context, so getUserMedia works without TLS; macOS TCC prompts on
 		// first use.
-		const tokenPromise = warmTokens.mint();
+		const tokenPromise = batch ? Promise.resolve("") : warmTokens.mint();
 		tokenPromise.catch(() => {}); // surfaced below; no unhandled rejection
 		const micPromise = navigator.mediaDevices.getUserMedia({
 			audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true, autoGainControl: true },
@@ -595,6 +612,16 @@ export function useDictation({ append, destination = "primary", disabled = false
 				if (msg.type === "level") {
 					levelRef.current = msg.rms ?? 0; // never reset to zero (dictate pattern)
 				} else if (msg.type === "audio") {
+					const recording = batchRef.current;
+					if (recording) {
+						// Batch engines: keep the whole run (capped ≈ 26 min).
+						const frame = msg.buffer as unknown as Int16Array;
+						if (recording.samples + frame.length <= MAX_RECORDING_SAMPLES) {
+							recording.frames.push(frame);
+							recording.samples += frame.length;
+						}
+						return;
+					}
 					const ws = wsRef.current;
 					if (ws && ws.readyState === WebSocket.OPEN) ws.send(msg.buffer!);
 					// Mitigation A: not OPEN yet (handshake or reconnect gap) —
@@ -611,6 +638,11 @@ export function useDictation({ append, destination = "primary", disabled = false
 			// Pull the graph with silence out (the worklet writes no output) —
 			// an unconnected worklet node is never clocked.
 			worklet.connect(ctx.destination);
+			if (batch) {
+				// Nothing to connect to: the graph being live IS recording.
+				setPhase("recording");
+				return;
+			}
 		} catch (e) {
 			if (gen !== genRef.current) return;
 			const msg =
@@ -652,6 +684,27 @@ export function useDictation({ append, destination = "primary", disabled = false
 		sourceRef.current = null;
 		workletRef.current?.disconnect();
 		workletRef.current = null;
+
+		const recording = batchRef.current;
+		if (recording) {
+			batchRef.current = null;
+			if (recording.samples === 0) { cleanup(); return; }
+			// One server transcription; a cancel or a newer run bumps the
+			// generation, so a late answer is dropped (dictate pattern).
+			void transcribeRecording(encodeWav(recording.frames), recording.language).then(
+				(text) => {
+					if (gen !== genRef.current) return;
+					if (text) bufferRef.current.push(text);
+					cleanup();
+				},
+				(e: unknown) => {
+					if (gen !== genRef.current) return;
+					setError(e instanceof Error ? e.message : "Transcription failed");
+					cleanup();
+				},
+			);
+			return;
+		}
 
 		const ws = wsRef.current;
 		if (ws && ws.readyState === WebSocket.OPEN) {
@@ -718,7 +771,9 @@ export function useDictation({ append, destination = "primary", disabled = false
 	// focused plugin control first, otherwise core fallback; Esc always
 	// cancels the actual recording owner rather than the focused widget.
 	useEffect(() => {
-		warmTokens.refresh(); // pre-mint at mount (mitigation D) — silent if keyless
+		// Pre-mint at mount (mitigation D) — silent if keyless; skipped once
+		// the engine is known not to be Deepgram.
+		void readSpeechEngine().then(refreshWarmToken);
 		return () => {
 			// Navigation cancels capture: invalidate every pending await before
 			// releasing resources, and never append into a different page's input.
