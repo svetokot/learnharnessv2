@@ -138,7 +138,8 @@ const defaultGetThinkingMessage = (isStreaming: boolean) => {
   if (isStreaming) {
     return <Shimmer duration={1}>Thinking...</Shimmer>;
   }
-  return <p>AGENT’S THINKING</p>;
+  // Uppercase via the class, so the editorial interface style can lower it.
+  return <p className="uppercase">Agent’s thinking</p>;
 };
 
 export const ReasoningTrigger = memo(

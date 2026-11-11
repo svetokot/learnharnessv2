@@ -32,6 +32,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
 		<html
 			lang="en"
 			className={`${theme.mode} ${ui.variable} ${prose.variable}`}
+			data-ui-style={appearance?.uiStyle ?? "editorial"}
 			style={vars as React.CSSProperties}
 			suppressHydrationWarning
 		>

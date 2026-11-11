@@ -143,16 +143,30 @@ function builtin(name: string, mode: ThemeMode, c: ThemeColors): Theme {
  *  onedark. */
 export const BUILTIN_THEMES: readonly Theme[] = [
 	{
+		// Identity wave (2026-11-11): the default is a warm "study" dark —
+		// charcoal paper, cream ink, a brass accent — instead of the neutral
+		// terminal gray, which survives as "Classic".
 		id: DEFAULT_THEME_ID,
 		name: "Default",
 		mode: "dark",
 		builtin: true,
 		colors: {
-			background: "#141414", surface: "#1c1c1c", border: "#434343", text: "#e6e6e6", textMuted: "#8d8d8d",
-			accent: "#8d8d8d", bold: "#e6e6e6", italic: "#e6e6e6", code: "#e6e6e6",
-			error: "#ef4444", success: "#22c55e", warning: "#f59e0b",
+			background: "#1b1a17", surface: "#24221e", border: "#3b3832", text: "#e9e4da", textMuted: "#9c968b",
+			// Emphasis inks stay the text color (owner ruling, 2026-09-26).
+			accent: "#c8a26b", bold: "#e9e4da", italic: "#e9e4da", code: "#e9e4da",
+			error: "#e0685e", success: "#8fbf7f", warning: "#d9a94f",
 		},
 	},
+	builtin("Paper", "light", {
+		background: "#f6f2ea", surface: "#ece6da", border: "#d8d0c1", text: "#2a2723", textMuted: "#776f64",
+		accent: "#2f5f8f", bold: "#1e3f63", italic: "#7b4a2c", code: "#9a3f2b",
+		error: "#b8392f", success: "#3d7a4a", warning: "#a6741c",
+	}),
+	builtin("Classic", "dark", {
+		background: "#141414", surface: "#1c1c1c", border: "#434343", text: "#e6e6e6", textMuted: "#8d8d8d",
+		accent: "#8d8d8d", bold: "#e6e6e6", italic: "#e6e6e6", code: "#e6e6e6",
+		error: "#ef4444", success: "#22c55e", warning: "#f59e0b",
+	}),
 	builtin("Catppuccin Latte", "light", {
 		background: "#eff1f5", surface: "#e6e9ef", border: "#ccd0da", text: "#4c4f69", textMuted: "#6c6f85",
 		accent: "#8839ef", bold: "#7287fd", italic: "#ea76cb", code: "#fe640b",

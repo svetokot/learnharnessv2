@@ -53,6 +53,7 @@ export function resolveAppearance(delta: AppearanceSettings | undefined) {
 		proseFontSize: delta?.proseFontSize ?? f.proseFontSize,
 		codeLigatures: delta?.codeLigatures ?? f.codeLigatures,
 		sessionNameSerif: delta?.sessionNameSerif ?? f.sessionNameSerif,
+		uiStyle: delta?.uiStyle ?? f.uiStyle,
 		mdRendering: {
 			headingWeight: delta?.mdRendering?.headingWeight ?? f.mdRendering.headingWeight,
 			boldColor: delta?.mdRendering?.boldColor ?? f.mdRendering.boldColor,
@@ -178,6 +179,13 @@ export function AppearanceProvider({
 		root.classList.toggle("dark", mode === "dark");
 		root.classList.toggle("light", mode === "light");
 	}, [mode, initialTheme.mode]);
+
+	// Interface typography (identity wave): an attribute, not a var — the
+	// stylesheet's [data-ui-style] block restyles label utilities too.
+	const uiStyle = appearance.uiStyle;
+	useLayoutEffect(() => {
+		document.documentElement.dataset.uiStyle = uiStyle;
+	}, [uiStyle]);
 
 	// The vars apply on every change — stringified as the change signal.
 	const vars = useMemo(() => appearanceVars(appearance, activeTheme), [appearance, activeTheme]);

@@ -41,10 +41,12 @@ it("no compiled font-family declaration bypasses the reading setting via the loa
 	assert.doesNotMatch(css, /(?:^|[;{])\s*font-family:[^;{}]*var\(--font-sans3\)/m);
 });
 
-it("mono chrome/code and the independent serif title remain separate font contracts", () => {
-	for (const selector of [".font-ui", ".font-mono"]) {
-		assert.match(rules(selector)[0]!, /font-family:\s*var\(--font-jetbrains\), ui-monospace, SFMono-Regular, monospace;/);
-	}
+it("mono code, the switchable chrome face, and the independent serif title remain separate font contracts", () => {
+	assert.match(rules(".font-mono")[0]!, /font-family:\s*var\(--font-jetbrains\), ui-monospace, SFMono-Regular, monospace;/);
+	// Chrome reads a runtime face: classic = mono, editorial = the reading sans.
+	assert.match(rules(".font-ui")[0]!, /font-family:\s*var\(--lh-font-ui\);/);
+	assert.match(css, /--lh-font-ui:\s*var\(--font-jetbrains\), ui-monospace, SFMono-Regular, monospace;/);
+	assert.match(css, /html\[data-ui-style="editorial"\]\s*\{\s*--lh-font-ui:\s*var\(--font-prose\)/);
 	assert.match(rules("body")[0]!, /font-family:\s*var\(--font-ui\);/);
 	assert.match(rules(".font-title").join("\n"), /font-family:\s*var\(--font-title\);/);
 	assert.match(css, /--font-title:\s*"lh-cmu", serif;/);

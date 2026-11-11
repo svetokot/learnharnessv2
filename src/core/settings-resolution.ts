@@ -222,6 +222,7 @@ export function resolveSettings(record: UserSettings | null): EffectiveSettings 
 			proseFontSize: appearance.proseFontSize ?? factoryAppearance.proseFontSize,
 			codeLigatures: appearance.codeLigatures ?? factoryAppearance.codeLigatures,
 			sessionNameSerif: appearance.sessionNameSerif ?? factoryAppearance.sessionNameSerif,
+			uiStyle: appearance.uiStyle ?? factoryAppearance.uiStyle,
 			mdRendering: {
 				headingWeight: md.headingWeight ?? factoryMd.headingWeight,
 				boldColor: md.boldColor ?? factoryMd.boldColor,

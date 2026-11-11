@@ -420,7 +420,17 @@ export interface AppearanceSettings {
 	codeLigatures?: boolean;
 	/** Session names in CMU Serif (default true — today's look). */
 	sessionNameSerif?: boolean;
+	/** Interface typography (identity wave): "editorial" (default) sets the
+	 *  chrome in the reading sans with sentence-case labels; "classic" is
+	 *  the original monospace chrome with uppercase tracked labels. */
+	uiStyle?: UiStyle;
 	mdRendering?: MdRenderingSettings;
+}
+
+export const UI_STYLES = ["editorial", "classic"] as const;
+export type UiStyle = (typeof UI_STYLES)[number];
+export function isUiStyle(value: unknown): value is UiStyle {
+	return (UI_STYLES as readonly unknown[]).includes(value);
 }
 
 /** Knowledge-graph settings — a strict dependency ladder (owner decision
@@ -528,6 +538,7 @@ export interface FactorySettings {
 		proseFontSize: number;
 		codeLigatures: boolean;
 		sessionNameSerif: boolean;
+		uiStyle: UiStyle;
 		mdRendering: {
 			headingWeight: number;
 			boldColor: string | null;
@@ -551,6 +562,7 @@ export const FACTORY_SETTINGS: FactorySettings = {
 		proseFontSize: 16,
 		codeLigatures: false,
 		sessionNameSerif: true,
+		uiStyle: "editorial",
 		mdRendering: { headingWeight: 900, boldColor: null, italicColor: null },
 	},
 	graph: { enabled: true, rendering: true, extractionChunkTokens: 4096 },
@@ -806,6 +818,7 @@ function sanitizeAppearance(raw: Record<string, unknown>): AppearanceSettings {
 	if (codeLigatures !== undefined) out.codeLigatures = codeLigatures;
 	const sessionNameSerif = boolOrDrop(raw.sessionNameSerif);
 	if (sessionNameSerif !== undefined) out.sessionNameSerif = sessionNameSerif;
+	if (isUiStyle(raw.uiStyle)) out.uiStyle = raw.uiStyle;
 	if (raw.mdRendering !== undefined) out.mdRendering = sanitizeMdRendering(raw.mdRendering);
 	return out;
 }

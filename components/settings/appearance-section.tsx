@@ -46,7 +46,7 @@ import { Hint } from "@/components/ui/hint";
 import { BUNDLED_READING_FONTS, useAppearance } from "./appearance.tsx";
 import { FontMenuList } from "./model-menu";
 import { ThemeCards } from "./theme-cards.tsx";
-import { CommitInput, SettingsMenuTrigger, SettingsRow, Toggle } from "./controls.tsx";
+import { CommitInput, SettingsMenuTrigger, SettingsRow, ThinSelect, Toggle } from "./controls.tsx";
 
 /** The factory reading family — the DEFAULT row's identity (unset =
  *  this). Exported for tests. */
@@ -409,6 +409,17 @@ export function AppearanceSection({
 					label="Code ligatures"
 					onChange={(on) => onSectionChange({ ...appearance, codeLigatures: on })}
 				/>
+			</SettingsRow>
+			<SettingsRow label="Interface style" testid="row-ui-style" hint="Editorial sets the interface in the reading font with sentence-case labels. Classic is the original monospace look.">
+				<ThinSelect
+					value={appearance?.uiStyle ?? "editorial"}
+					ariaLabel="interface style"
+					testid="ui-style"
+					onChange={(next) => onSectionChange({ ...appearance, uiStyle: next === "classic" ? "classic" : "editorial" })}
+				>
+					<option value="editorial">Editorial</option>
+					<option value="classic">Classic</option>
+				</ThinSelect>
 			</SettingsRow>
 			<SettingsRow label="Session names in serif" testid="row-session-serif">
 				<Toggle

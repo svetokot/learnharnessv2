@@ -1,14 +1,28 @@
 # Themes
 
 **Settings → Appearance → Theme** sets the app's UI palette.
-LearnHarness ships eleven presets: Default (the original dark palette), Catppuccin
-Latte, Frappé, Macchiato and Mocha, Rosé Pine and Rosé Pine Dawn, Gruvbox Dark, Ivory, Pastel, and NvChad Onedark.
+LearnHarness ships thirteen presets: Default (a warm charcoal dark with a brass
+accent), Paper (its warm light counterpart), Classic (the original neutral dark
+palette), Catppuccin Latte, Frappé, Macchiato and Mocha, Rosé Pine and Rosé Pine
+Dawn, Gruvbox Dark, Ivory, Pastel, and NvChad Onedark.
 Each theme declares whether it is dark or light. The native window background
 follows the effective background, including your override; native control symbols
 choose a contrasting ink. Mermaid diagrams follow the theme's light/dark mode.
 Generated figures keep their own colors and existing inversion controls. Plugins
 that use the app's CSS tokens inherit them; plugin-specific palettes and artwork
 are not rewritten.
+
+## Interface style
+
+**Settings → Appearance → Interface style** chooses the interface typography,
+independently of the palette:
+
+- **Editorial** (default): menus, labels, buttons and settings use the reading
+  font, with sentence-case labels instead of uppercase letter-spaced ones.
+- **Classic**: the original monospace interface with uppercase labels.
+
+Code, inline code and tool output stay monospace in both. For the complete
+original look, choose Classic here and the Classic theme above.
 
 ## Overriding single colors
 
