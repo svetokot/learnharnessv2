@@ -1,7 +1,8 @@
 /**
  * The composer's attach button (issue #285): the picker's twin of a file
  * drop. Picked files become quoted path chips at the caret through the
- * desktop bridge; the browser build explains instead. Same linkedom
+ * desktop bridge; without it (browser, remote desktop) picks upload to the
+ * server and the server paths become chips instead. Same linkedom
  * shims as file-path-drop-zone.test.tsx (no native Selection there).
  */
 import React, { act } from "react";
@@ -174,9 +175,10 @@ describe("composer attach button", () => {
 		assert.deepEqual(result, { paths: ["/notes/a.pdf"], skipped: 2 });
 	});
 
-	it("server render is the browser case: a disabled-looking paperclip between the input and Send", () => {
+	it("server render is the browser case: an enabled upload paperclip between the input and Send", () => {
 		const html = renderToStaticMarkup(<Composer busy={false} value="" onChange={() => {}} onSend={() => {}} onStop={() => {}} canSend={false} />);
-		assert.match(html, /aria-label="Attach files"[^>]*aria-disabled="true"|aria-disabled="true"[^>]*aria-label="Attach files"/);
+		assert.match(html, /aria-label="Attach files"[^>]*aria-disabled="false"|aria-disabled="false"[^>]*aria-label="Attach files"/);
+		assert.ok(html.includes('data-testid="attach-folder-input"') && html.includes("webkitdirectory"), "a folder picker for uploads");
 		const editor = html.indexOf("data-file-path-input");
 		const attach = html.indexOf('data-testid="attach-files"');
 		const send = html.indexOf('aria-label="Send"');
@@ -287,12 +289,28 @@ describe("composer attach button", () => {
 		assert.equal(f.sends, 0);
 	});
 
-	it("browser: the button stays inert and the picker never opens", async () => {
+	it("no path bridge: Files uploads the picks and inserts the server paths at the caret", async () => {
 		const f = await fixture({ desktop: false });
-		assert.equal(f.button.getAttribute("aria-disabled"), "true");
-		await act(async () => { f.button.click(); });
-		assert.equal(f.pickerClicks, 0);
-		await f.pick([f.file("a.pdf", "/a.pdf")]);
-		assert.equal(f.value, "readthis");
+		const sent: FormData[] = [];
+		const previousFetch = globalThis.fetch;
+		globalThis.fetch = (async (_url: unknown, init?: RequestInit) => {
+			sent.push(init!.body as FormData);
+			return Response.json({ paths: ["/srv/lh/data/uploads-pending/20261111-120000-abcdef01/a.pdf"] });
+		}) as typeof fetch;
+		try {
+			assert.equal(f.button.getAttribute("aria-disabled"), "false");
+			f.caret(4);
+			await act(async () => { f.button.click(); });
+			await f.choice("Files");
+			assert.equal(f.pickerClicks, 1);
+			await f.pick([f.file("a.pdf")]);
+			await act(async () => { await new Promise((resolve) => setTimeout(resolve, 0)); });
+			assert.equal(sent.length, 1);
+			assert.deepEqual(sent[0]!.getAll("path"), ["a.pdf"]);
+			assert.equal(sent[0]!.get("chatId"), null, "no open chat → pending batch");
+			assert.equal(f.value, `read ${quoteFilePath("/srv/lh/data/uploads-pending/20261111-120000-abcdef01/a.pdf")} this`);
+		} finally {
+			globalThis.fetch = previousFetch;
+		}
 	});
 });

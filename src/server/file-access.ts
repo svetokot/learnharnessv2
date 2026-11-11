@@ -5,6 +5,7 @@ import os from "node:os";
 import path from "node:path";
 import type { FileAccessPolicy } from "../agent/tools/file-access.ts";
 import { readFileAccessSettings } from "../store/settings.ts";
+import { uploadsRootIfPresent } from "./uploads.ts";
 
 export function expandFolder(folder: string, home: string = os.homedir()): string {
 	if (folder === "~") return home;
@@ -16,7 +17,11 @@ export function expandFolder(folder: string, home: string = os.homedir()): strin
 export function fileAccessPolicy(): FileAccessPolicy {
 	const result = readFileAccessSettings();
 	if (!result.ok) return { restricted: true, folders: [], error: result.error };
-	return { restricted: result.settings.restricted, folders: result.settings.folders.map((folder) => expandFolder(folder)) };
+	const folders = result.settings.folders.map((folder) => expandFolder(folder));
+	// Learner uploads stay readable when restricted (owner: the whole uploads
+	// folder; pending batches live outside it and are never readable).
+	const uploads = result.settings.restricted ? uploadsRootIfPresent() : null;
+	return { restricted: result.settings.restricted, folders: uploads ? [...folders, uploads] : folders };
 }
 
 /** Safe UI diagnostic, no raw JSON/file contents. A corrupt record must

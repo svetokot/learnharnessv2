@@ -40,6 +40,8 @@ npm start              # serve the production build with Next
 npm run dev -- -H 0.0.0.0     # then browse to http://<this machine's IP>:3000
 ```
 
+`npm run start:remote` serves a production build on `0.0.0.0`; the desktop app can connect to it — see [Remote server](remote.md).
+
 The API accepts `localhost` and IP addresses as the host name. To use any other name (`mymac.local`, a reverse-proxy domain), list it in `LH_ALLOWED_HOSTS`. Browser writes must come from the same origin as the page.
 
 ## Configuration
@@ -66,9 +68,9 @@ Provider-specific setup and limitations: [Claude Code](claude-code.md), [custom 
 
 Web/dev writes `chatgpt-credentials.json`, `github-copilot-credentials.json`, and `xai-credentials.json` **beside `LH_AUTH_FILE`**, in the repo by default—not under `data/` or a global Pi profile. Git/build exclusions cover these files and their write temporaries. Refresh serialization is process-local: use one server per credential directory.
 
-ChatGPT's callback listener is `127.0.0.1` on the **server's machine**; complete sign-in in a browser there. Copilot/Grok use device codes. Allow the initiating browser's sign-in tab if blocked; Electron dev opens provider pages in the system browser. Connected browsers share server credentials, background-use consent, keys, and learning data.
+ChatGPT's callback listener is `127.0.0.1` on the **server's machine**; complete sign-in in a browser there, or from a desktop app connected in [remote mode](remote.md), which relays the callback. Copilot/Grok use device codes. Allow the initiating browser's sign-in tab if blocked; Electron dev opens provider pages in the system browser. Connected browsers share server credentials, background-use consent, keys, and learning data.
 
-This is **trusted local/shared development**, not multi-user hosting. The API's host-name and same-origin checks block DNS rebinding and cross-site writes from other websites, but they are not user authentication; nor are the short-lived, origin-bound, one-use browser-opening actions. Do not expose the server to untrusted users/public Internet without an independent access gate. Per-user isolation, remote ChatGPT callback routing, and credential import are not implemented.
+This is **trusted local/shared development**, not multi-user hosting. The API's host-name and same-origin checks block DNS rebinding and cross-site writes from other websites, but they are not user authentication; nor are the short-lived, origin-bound, one-use browser-opening actions. Do not expose the server to untrusted users/public Internet without an independent access gate. Per-user isolation and credential import are not implemented; remote ChatGPT callbacks are relayed only by a connected desktop app.
 
 ## Safe local work
 

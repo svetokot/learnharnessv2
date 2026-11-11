@@ -31,6 +31,13 @@
  *   (theme wave, 2026-11-04): main sets nativeTheme.themeSource and
  *   repaints the native window background / control overlay to match.
  *
+ *   window.lh.connection — this client's server choice (remote-client
+ *   wave): get() → { saved, active, dev }, test(url) → { ok, error?, url },
+ *   apply({ mode, url }) saves and relaunches. window.lh.remote is true when
+ *   this window talks to a remote server; the path bridge (getPathForFile,
+ *   chooseAttachmentFolder) is then withheld — client paths mean nothing on
+ *   the server, so attachments upload instead.
+ *
  * Channel names are mirrored in electron/main.cjs — keep them in sync.
  */
 const { contextBridge, ipcRenderer, webUtils } = require("electron");
@@ -42,12 +49,21 @@ ipcRenderer.on("lh:open-settings", (_event, section) => {
 	else pendingOpenSettings = section;
 });
 
+const remote = !!process.argv?.includes("--lh-remote");
+
 contextBridge.exposeInMainWorld("lh", {
 	platform: process.platform,
-	// Resolve only a renderer-supplied, OS-backed File. No filesystem API,
-	// uploads, copies, or DOM File IPC to main; sandbox/isolation stay on.
-	getPathForFile: (file) => webUtils.getPathForFile(file),
-	chooseAttachmentFolder: () => ipcRenderer.invoke("lh:attachment:pick", "folder"),
+	...(remote ? { remote: true } : {
+		// Resolve only a renderer-supplied, OS-backed File. No filesystem API,
+		// uploads, copies, or DOM File IPC to main; sandbox/isolation stay on.
+		getPathForFile: (file) => webUtils.getPathForFile(file),
+		chooseAttachmentFolder: () => ipcRenderer.invoke("lh:attachment:pick", "folder"),
+	}),
+	connection: {
+		get: () => ipcRenderer.invoke("lh:connection:get"),
+		test: (url) => ipcRenderer.invoke("lh:connection:test", url),
+		apply: (next) => ipcRenderer.invoke("lh:connection:apply", next),
+	},
 	...(process.argv?.includes("--lh-web-subscriptions") ? {
 		subscriptionTransport: "web",
 		openSubscriptionBrowser: (action) => ipcRenderer.invoke("lh:subscriptions:web-browser", action),

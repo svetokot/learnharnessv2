@@ -47,6 +47,10 @@ export function createWebSubscriptionOwner(options: {
 	const launches = new AsyncLocalStorage<string[]>();
 	const actions = new Map<string, BrowserAction>();
 	let chatGPTLaunch = 0;
+	/** The loopback port of the newest ChatGPT sign-in's callback listener on
+	 *  THIS server. A remote desktop client relays the browser's callback here
+	 *  (its browser's 127.0.0.1 is the client, not the server). */
+	let chatGPTCallbackPort: number | null = null;
 	const openExternal = async (target: string) => {
 		const captured = launches.getStore();
 		if (!captured || new URL(target).protocol !== "https:") throw new Error("No browser action is pending.");
@@ -75,6 +79,7 @@ export function createWebSubscriptionOwner(options: {
 				for (const [id, action] of actions) if (action.expires <= Date.now() || action.scope === scope) actions.delete(id);
 				const id = randomUUID();
 				const generation = providerId === "chatgpt" ? ++chatGPTLaunch : chatGPTLaunch;
+				if (providerId === "chatgpt") chatGPTCallbackPort = chatGPTCallbackPortOf(target);
 				const current = providerId === "chatgpt"
 					? async () => generation === chatGPTLaunch && (await chatgpt.status()).pending === true
 					: async () => (await native.status()).some((status: { providerId: string; interaction?: { attemptId: string; browser?: { id: string } } }) => status.providerId === providerId && status.interaction?.attemptId === command.attemptId && status.interaction?.browser?.id === command.actionId);
@@ -90,8 +95,26 @@ export function createWebSubscriptionOwner(options: {
 			if (action.expires <= Date.now() || !await action.current()) return;
 			return action.target;
 		},
+		/** Forward a relayed ChatGPT callback query to the pending listener. The
+		 *  listener itself verifies state/code; this only routes the request. */
+		async relayChatGPTCallback(search: string): Promise<{ status: number; body: string } | undefined> {
+			const port = chatGPTCallbackPort;
+			if (!port || !(await chatgpt.status()).pending) return;
+			const response = await fetch(`http://127.0.0.1:${port}/auth/callback${search}`, { redirect: "manual", signal: AbortSignal.timeout(20000) });
+			return { status: response.status, body: (await response.text()).slice(0, 2000) };
+		},
 		close() { actions.clear(); chatgpt.close(); native.close(); },
 	};
+}
+/** The callback port from a ChatGPT authorize URL's redirect_uri — only a
+ *  loopback /auth/callback target qualifies. */
+export function chatGPTCallbackPortOf(target: string): number | null {
+	try {
+		const redirect = new URL(new URL(target).searchParams.get("redirect_uri") ?? "");
+		if (redirect.protocol !== "http:" || redirect.hostname !== "127.0.0.1" || redirect.pathname !== "/auth/callback" || !redirect.port) return null;
+		const port = Number(redirect.port);
+		return Number.isInteger(port) && port > 0 && port < 65536 ? port : null;
+	} catch { return null; }
 }
 export function webSubscriptionOwner() {
 	if (!webSubscriptionsEnabled()) throw new Error("Web subscription controls are unavailable in desktop-owned mode.");

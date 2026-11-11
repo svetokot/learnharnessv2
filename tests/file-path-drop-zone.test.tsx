@@ -153,24 +153,48 @@ test("unfocused drop uses the dictation target registry, not the last focused ed
 	f.assertPathOnly();
 });
 
-test("browser drop prevents navigation, explains desktop-only local paths and never infers File.name", async () => {
+test("without the path bridge a drop uploads files and folders and inserts the server paths", async () => {
 	const f = await fixture({ desktop: false });
-	const transfer = f.transfer([f.file("/not/a/backing/path.pdf")]);
-	const enter = await f.event("dragenter", transfer);
+	const sent: FormData[] = [];
+	globalThis.fetch = (async (_url: unknown, init?: RequestInit) => {
+		sent.push(init!.body as FormData);
+		return Response.json({ paths: ["/srv/uploads/c1/b/a.pdf", "/srv/uploads/c1/b/notes/"] });
+	}) as typeof fetch;
+	const a = new File(["a"], "a.pdf");
+	const inner = new File(["w"], "week1.md");
+	const fileEntry = (file: File) => ({ isFile: true, isDirectory: false, name: file.name, file: (ok: (value: File) => void) => ok(file) });
+	let reads = 0;
+	const folder = { isFile: false, isDirectory: true, name: "notes", createReader: () => ({ readEntries: (ok: (entries: unknown[]) => void) => ok(reads++ === 0 ? [fileEntry(inner)] : []) }) };
+	const transfer = {
+		types: ["Files"],
+		files: Object.assign([a], { item: () => a }),
+		items: [
+			{ kind: "file", type: "", getAsFile: () => a, webkitGetAsEntry: () => fileEntry(a) },
+			{ kind: "file", type: "", getAsFile: () => null, webkitGetAsEntry: () => folder },
+		],
+		dropEffect: "none",
+	};
+	const enter = await f.event("dragenter", transfer as unknown as ReturnType<typeof f.transfer>);
 	assert.equal(enter.defaultPrevented, true);
-	assert.match(f.doc.querySelector('[data-testid="file-path-drop-indicator"]')!.textContent!, /desktop app/);
-	const over = await f.event("dragover", transfer);
-	assert.equal(over.defaultPrevented, true);
-	assert.equal(transfer.dropEffect, "copy");
-	const drop = await f.event("drop", transfer);
+	assert.match(f.doc.querySelector('[data-testid="file-path-drop-indicator"]')!.textContent!, /upload to the server/);
+	const drop = await f.event("drop", transfer as unknown as ReturnType<typeof f.transfer>);
 	assert.equal(drop.defaultPrevented, true);
-	assert.match(f.status, /Local file paths can only be attached in the desktop app/);
-	assert.match(f.status, /paste a full path instead/);
-	assert.equal(f.doc.querySelector('[data-testid="file-path-drop-indicator"]'), null);
-	assert.equal(f.value, "readthis");
-	assert.deepEqual(f.appends, []);
+	await act(async () => { await new Promise((resolve) => setTimeout(resolve, 0)); });
+	assert.equal(sent.length, 1);
+	assert.deepEqual(sent[0]!.getAll("path"), ["a.pdf", "notes/week1.md"]);
+	assert.deepEqual(f.appends, [["/srv/uploads/c1/b/a.pdf", "/srv/uploads/c1/b/notes/"].map(quoteFilePath).join(" ")]);
+	assert.equal(f.status, "");
 	assert.deepEqual(f.resolved, []);
-	f.assertPathOnly();
+});
+
+test("an upload failure is reported in the drop notice and inserts nothing", async () => {
+	const f = await fixture({ desktop: false });
+	globalThis.fetch = (async () => Response.json({ error: "Uploads are limited to 200 MB at a time." }, { status: 413 })) as typeof fetch;
+	const a = new File(["a"], "a.pdf");
+	await f.event("drop", { types: ["Files"], files: Object.assign([a], { item: () => a }), items: [], dropEffect: "none" } as unknown as ReturnType<typeof f.transfer>);
+	await act(async () => { await new Promise((resolve) => setTimeout(resolve, 0)); });
+	assert.match(f.status, /200 MB/);
+	assert.deepEqual(f.appends, []);
 });
 
 test("mixed files and directories retain one original path each in drop order; invalid paths are skipped", async () => {

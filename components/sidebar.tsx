@@ -55,6 +55,7 @@ const STORAGE_KEY = "lh:sidebar-open";
  */
 import type { ChatGPTControlBridge, NativeSubscriptionControlBridge } from "@/src/core";
 import type { UpdateState } from "@/components/settings/update-settings.tsx";
+import type { ConnectionBridge } from "@/components/settings/server-connection.tsx";
 import { FilePathDropZone } from "@/components/file-path-drop-zone";
 const SIDEBAR_AUTOCLOSE = 928;
 
@@ -71,6 +72,10 @@ declare global {
 			getPathForFile?: (file: File) => string;
 			/** Choose one original directory path, without reading its contents. */
 			chooseAttachmentFolder?: () => Promise<string | null>;
+			/** True when this window talks to a remote server (no path bridge). */
+			remote?: boolean;
+			/** This client's server choice (Settings → General → Server). */
+			connection?: ConnectionBridge;
 			/** External Next desktop-dev uses the server's web connections. */
 			subscriptionTransport?: "desktop" | "web";
 			openSubscriptionBrowser?: (action: string) => Promise<void>;

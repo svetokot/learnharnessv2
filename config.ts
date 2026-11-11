@@ -32,6 +32,14 @@ export const PATHS = {
 	/** Debug artifacts (env-gated): data/debug/provider-events/<chatId>.jsonl
 	 * raw provider stream recordings (src/agent/provider-events.ts). */
 	debug: path.join(/* turbopackIgnore: true */ DATA_ROOT, "debug"),
+	/** Learner uploads (remote/browser clients have no server paths):
+	 *  uploads/<chatId>/<batch>/…, deleted with the chat. Always readable by
+	 *  the file tools, even when File access is restricted. */
+	uploads: path.join(/* turbopackIgnore: true */ DATA_ROOT, "uploads"),
+	/** Batches uploaded before their chat exists (the new-session screen):
+	 *  moved into uploads/<chatId>/ at creation, swept after 24h. Outside
+	 *  uploads/ on purpose — never readable by the file tools. */
+	uploadsPending: path.join(/* turbopackIgnore: true */ DATA_ROOT, "uploads-pending"),
 } as const;
 
 // ─── Models ────────────────────────────────────────────────────────────────

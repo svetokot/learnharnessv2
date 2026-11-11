@@ -59,3 +59,24 @@ export async function subscriptionBrowserResponse(request: Request): Promise<Res
 	if (!target) return error("This sign-in action is no longer available.", 410);
 	return new Response(null, { status: 303, headers: { ...HEADERS, Location: target } });
 }
+
+/** Remote desktop clients relay ChatGPT's loopback OAuth callback here (see
+ * electron/chatgpt-relay.cjs). Same request policy as the controls; the
+ * pending listener alone verifies state and code. */
+export async function chatGPTCallbackRelayResponse(request: Request): Promise<Response> {
+	if (!webSubscriptionsEnabled()) return error("Unavailable.", 404);
+	if (request.method !== "POST" || !authorized(request)) return error("Relay sign-in from LearnHarness.", 403);
+	try {
+		if (Number(request.headers.get("content-length")) > 8192) return error("Request too large.", 413);
+		const text = await request.text();
+		if (text.length > 8192) return error("Request too large.", 413);
+		const body: unknown = JSON.parse(text);
+		const search = (body as { search?: unknown } | null)?.search;
+		if (typeof search !== "string" || !search.startsWith("?") || search.length > 8000) return error("Invalid callback.", 400);
+		const relayed = await webSubscriptionOwner().relayChatGPTCallback(search);
+		if (!relayed) return error("No ChatGPT sign-in is waiting.", 410);
+		return Response.json(relayed, { headers: HEADERS });
+	} catch {
+		return error("The sign-in callback could not be delivered.", 502);
+	}
+}

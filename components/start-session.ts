@@ -11,7 +11,9 @@ interface SessionCreation {
  * Changed text/context/settings is a different start, not a stale title.
  */
 export class SessionStarter {
-	private created?: { identity: string; id: string };
+	/** `opening`: the prompt to stash — the server's rewrite when it claimed
+	 * pending uploads (their paths moved into the new chat's folder). */
+	private created?: { identity: string; id: string; opening: string };
 
 	async start(body: SessionCreation, fetchLike: typeof fetch, settingsIdentity?: string): Promise<string> {
 		const identity = JSON.stringify([body, settingsIdentity]);
@@ -24,11 +26,11 @@ export class SessionStarter {
 				body: JSON.stringify(body),
 			});
 			if (!res.ok) throw new Error(OPENING_PROMPT_FAILURE);
-			const result = await res.json() as { id?: unknown };
+			const result = await res.json() as { id?: unknown; opening?: unknown };
 			if (typeof result.id !== "string" || !/^[A-Za-z0-9_-]+$/.test(result.id)) throw new Error(OPENING_PROMPT_FAILURE);
-			this.created = { identity, id: result.id };
+			this.created = { identity, id: result.id, opening: typeof result.opening === "string" ? result.opening : body.title };
 		}
-		if (!stashOpeningPrompt(this.created.id, body.title)) throw new Error(OPENING_PROMPT_FAILURE);
+		if (!stashOpeningPrompt(this.created.id, this.created.opening)) throw new Error(OPENING_PROMPT_FAILURE);
 		return `/chat/${this.created.id}`;
 	}
 }

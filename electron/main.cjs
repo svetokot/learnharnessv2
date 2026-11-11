@@ -32,6 +32,8 @@ const { createSubscriptions, loadSubscriptionSDK } = require("./subscriptions.cj
 const { attachSubscriptionChild, subscriptionControl } = require("./subscription-ipc.cjs");
 const { desktopAPIHeaders } = require("./desktop-api.cjs");
 const { openWebSubscriptionBrowser } = require("./web-subscription-browser.cjs");
+const { chatGPTRelayPort, startChatGPTRelay } = require("./chatgpt-relay.cjs");
+const { readConnection, writeConnection, normalizeServerURL, needsInsecureOriginGrant, probeServer } = require("./connection.cjs");
 const { randomBytes } = require("node:crypto");
 const { spawn } = require("node:child_process");
 const fs = require("node:fs");
@@ -54,6 +56,13 @@ const PRODUCT_NAME = "LearnHarness";
 app.setName(PRODUCT_NAME);
 const AUTH_FILE = () => path.join(app.getPath("userData"), "auth.json");
 const DATA_DIR = () => path.join(app.getPath("userData"), "data");
+/** This client's saved server choice (electron/connection.cjs). Declared
+ *  before the boot branch below assigns it. */
+let connection = { mode: "local", url: null };
+/** The origin this launch actually loads remotely, or null (local/dev). */
+let remoteOrigin = null;
+/** A remote ChatGPT sign-in's loopback callback relay (chatgpt-relay.cjs). */
+let chatGPTRelay = null;
 
 // Resolve the saved palette before window creation; renderer reports keep
 // it current after live saves. This helper needs no compiled server bundle.
@@ -128,6 +137,15 @@ if (process.argv.includes("--browser-service")) {
 	// localStorage, auth.json, or logs. Must run before the lock check.
 	if (process.env.LH_DEV_URL) {
 		app.setPath("userData", `${app.getPath("userData")}-dev`);
+	}
+
+	// Remote server (remote-client wave): this client's saved choice. A
+	// plain-HTTP LAN origin is not a secure context, so Chromium would hide
+	// the microphone — grant exactly that origin. Command-line switches must
+	// land before app-ready. The dev shell always uses LH_DEV_URL.
+	if (!process.env.LH_DEV_URL) connection = readConnection(app.getPath("userData"));
+	if (connection.mode === "remote" && needsInsecureOriginGrant(connection.url)) {
+		app.commandLine.appendSwitch("unsafely-treat-insecure-origin-as-secure", connection.url);
 	}
 
 	// The whole normal boot — lock included — lives in this else: a helper is
@@ -277,6 +295,7 @@ function waitUntilUp(url, tries = 150) {
 }
 
 function killServer() {
+	chatGPTRelay?.close();
 	chatgpt?.close();
 	subscriptions?.close();
 	if (!serverProcess) return;
@@ -348,6 +367,10 @@ function createWindow(url) {
 			sandbox: true,
 			nodeIntegration: false,
 			...(process.env.LH_DEV_URL ? { additionalArguments: ["--lh-web-subscriptions"] } : {}),
+			// Remote: the server owns subscription sign-in (web transport, as in
+			// the dev shell), and client paths mean nothing on the server —
+			// preload withholds the path bridge and attachments upload instead.
+			...(remoteOrigin ? { additionalArguments: ["--lh-remote", "--lh-web-subscriptions"] } : {}),
 			preload: path.join(__dirname, "preload.cjs"),
 		},
 		// Live-resize + first-paint flash (owner, 2026-09-17): during a resize
@@ -663,6 +686,29 @@ function installMenu() {
 	Menu.setApplicationMenu(Menu.buildFromTemplate(template));
 }
 
+/** Probe the saved remote origin until it answers or the learner picks
+ *  another path. Native dialogs have no text field, so "Edit URL" starts
+ *  the local server and opens Settings → General, where the row lives. */
+async function connectRemote(origin) {
+	for (;;) {
+		const result = await probeServer(origin);
+		if (result.ok) return "remote";
+		log(`remote server ${origin} unavailable: ${result.error}`);
+		const { response } = await dialog.showMessageBox({
+			type: "warning",
+			title: PRODUCT_NAME,
+			message: `Can’t reach the LearnHarness server at ${origin}`,
+			detail: result.error,
+			buttons: ["Retry", "Edit URL", "Use local", "Quit"],
+			defaultId: 0,
+			cancelId: 3,
+			noLink: true,
+		});
+		if (response === 0) continue;
+		return ["remote", "edit", "local", "quit"][response];
+	}
+}
+
 async function main() {
 	app.on("window-all-closed", () => {
 		chatgpt?.pause();
@@ -690,8 +736,19 @@ async function main() {
 	// spawn, no packaging, full HMR. The rest of this shell still applies
 	// (guards, menu, single instance).
 	const devUrl = process.env.LH_DEV_URL;
-	const url = devUrl ?? `http://127.0.0.1:${await freePort()}`;
-	if (!devUrl) {
+	// Remote: probe first; on failure the learner chooses Retry, Edit URL
+	// (start locally, open Settings → General), or Use local (this launch).
+	let openSettingsOnLoad = null;
+	if (!devUrl && connection.mode === "remote") {
+		const outcome = await connectRemote(connection.url);
+		if (outcome === "remote") remoteOrigin = connection.url;
+		else if (outcome === "edit") openSettingsOnLoad = "general";
+		else if (outcome === "quit") { app.exit(0); return; }
+	}
+	const url = devUrl ?? remoteOrigin ?? `http://127.0.0.1:${await freePort()}`;
+	if (remoteOrigin) {
+		log(`remote server: ${remoteOrigin} (no local server child)`);
+	} else if (!devUrl) {
 		desktopAPISecret = randomBytes(32).toString("hex");
 		const ownedOrigin = new URL(url).origin;
 		// All URLs, not only /api: remove the header again on external redirects.
@@ -761,14 +818,54 @@ async function main() {
 
 	// The dev shell has no browser tabs. Only a one-use action on its own
 	// Next server may be resolved here; never accept an arbitrary external URL.
+	// A remote client does the same; for ChatGPT it also relays the loopback
+	// OAuth callback to the server (electron/chatgpt-relay.cjs).
 	ipcMain.handle("lh:subscriptions:web-browser", async (event, action) => {
-		if (!devUrl || !trustedAppWindows.has(BrowserWindow.fromWebContents(event.sender)) || !trustedSender(event, new URL(url).origin, BrowserWindow)) throw new Error("Untrusted development request.");
-		await openWebSubscriptionBrowser(action, new URL(url).origin, { openExternal: (target) => shell.openExternal(target) });
+		if (!(devUrl || remoteOrigin) || !trustedAppWindows.has(BrowserWindow.fromWebContents(event.sender)) || !trustedSender(event, new URL(url).origin, BrowserWindow)) throw new Error("Untrusted development request.");
+		await openWebSubscriptionBrowser(action, new URL(url).origin, {
+			openExternal: async (target) => {
+				const port = remoteOrigin ? chatGPTRelayPort(target) : null;
+				if (port) {
+					chatGPTRelay?.close();
+					chatGPTRelay = null;
+					try {
+						chatGPTRelay = await startChatGPTRelay({ port, origin: remoteOrigin, log });
+						log(`chatgpt relay listening on 127.0.0.1:${port} → ${remoteOrigin}`);
+					} catch (err) {
+						log(`chatgpt relay could not listen on ${port}: ${err?.message ?? err}`);
+					}
+				}
+				await shell.openExternal(target);
+			},
+		});
 	});
 
 	ipcMain.handle("lh:attachment:pick", (event, mode) => pickAttachmentPath(event, mode, {
 		BrowserWindow, dialog, trustedAppWindows, origin: new URL(url).origin,
 	}));
+
+	// Server connection (Settings → General). The record lives on this client.
+	const trustedConnectionSender = (event) => trustedAppWindows.has(BrowserWindow.fromWebContents(event.sender)) && trustedSender(event, new URL(url).origin, BrowserWindow);
+	ipcMain.handle("lh:connection:get", (event) => {
+		if (!trustedConnectionSender(event)) throw new Error("Untrusted desktop request.");
+		return { saved: readConnection(app.getPath("userData")), active: remoteOrigin ? { mode: "remote", url: remoteOrigin } : { mode: "local", url: null }, dev: !!devUrl };
+	});
+	ipcMain.handle("lh:connection:test", async (event, value) => {
+		if (!trustedConnectionSender(event)) throw new Error("Untrusted desktop request.");
+		const origin = normalizeServerURL(value);
+		if (!origin) return { ok: false, error: "Enter a server address like http://192.168.1.20:3000" };
+		return { ...(await probeServer(origin)), url: origin };
+	});
+	ipcMain.handle("lh:connection:apply", (event, next) => {
+		if (!trustedConnectionSender(event)) throw new Error("Untrusted desktop request.");
+		if (devUrl) throw new Error("The development shell always uses LH_DEV_URL.");
+		const record = writeConnection(app.getPath("userData"), { mode: next?.mode, url: next?.url });
+		log(`connection saved: ${record.mode}${record.mode === "remote" ? ` ${record.url}` : ""} — relaunching`);
+		killServer();
+		app.relaunch();
+		app.exit(0);
+		return record;
+	});
 
 	installMenu();
 
@@ -814,8 +911,13 @@ async function main() {
 	app.on("activate", () => {
 		if (BrowserWindow.getAllWindows().length === 0) reopenWindow();
 	});
-	createWindow(url);
+	const firstWindow = createWindow(url);
 	log(`window open: ${url}`);
+	if (openSettingsOnLoad) {
+		firstWindow.webContents.once("did-finish-load", () => {
+			try { firstWindow.webContents.send("lh:open-settings", openSettingsOnLoad); } catch { /* window closed */ }
+		});
+	}
 	// Startup + 24h checks stay main-owned and read the current preference.
 	// No renderer subscription is required; late loads retrieve the snapshot.
 	if (autoUpdater) {
