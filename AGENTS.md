@@ -13,3 +13,46 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 All design authority belongs to the human. **Never guess a design or implementation decision.** If anything is ambiguous — naming, behavior, data shapes, UX, defaults, scope boundaries, prompt wording — STOP and ask with the ask-user-question tool before proceeding. If you are "a little unsure," you are unsure: ask. A wrong guess is far more expensive than a question. Ask early, ask specific, one question per call.
 
 Concretely: first investigate and plan rigorously (asking the user design questions along the way), get the plan approved by the user, and only then implement. Implementation should be mechanical execution of an approved plan — not interpretation.
+
+# Project context (fork additions, 2026-11)
+
+Four features were added on top of upstream LearnHarness 0.6.0. Branches are stacked in this order: `feat/remote-client` → `feat/claude-cli-polish` → `feat/stt-engines` → `feat/ui-identity`.
+
+## Remote server + desktop client
+- The server runs headless with `npm run build && npm run start:remote`, which binds `0.0.0.0`. There is **no auth** by owner decision: trusted LAN/VPN only. Host names other than IPs and localhost need `LH_ALLOWED_HOSTS`. Setup: `docs/remote.md`.
+- Desktop: Settings → General → Server (`components/settings/server-connection.tsx`).
+  - The choice is stored per client in `userData/connection.json` (`electron/connection.cjs`).
+  - Remote launches spawn no server child.
+  - A plain-HTTP origin gets `--unsafely-treat-insecure-origin-as-secure`, so the mic works. Verified in Electron 44 on Linux.
+- Remote windows get `--lh-remote --lh-web-subscriptions`. Preload then withholds `getPathForFile` and `chooseAttachmentFolder`.
+  - Subscriptions use the server's web owner (`src/server/web-subscriptions.ts`).
+  - ChatGPT's loopback OAuth callback is relayed client → server by `electron/chatgpt-relay.cjs` and `POST /api/subscriptions/chatgpt-callback`.
+- Uploads apply whenever there is no path bridge (browser or remote desktop). Code: `src/server/uploads.ts`, `components/uploads.ts`.
+  - The route is `POST /api/uploads`, capped at 200 MB per batch.
+  - Files land in `data/uploads/<chatId>/<batch>/`. Batches attached before a chat exists wait in `data/uploads-pending/`; they are claimed in `POST /api/chats`, which returns `opening`, and swept after 24h.
+  - A chat's uploads are deleted with the chat. `data/uploads/` is always readable by the file tools, even when File access is restricted.
+- Proxy-exempt routes are `/api/uploads` and `/api/stt/transcribe`, because Proxy truncates bodies at its clone limit. Each runs `apiRequestRefusal` inline. Keep `proxy.ts` matcher literals in sync.
+
+## Claude
+- The Claude Pro/Max subscription is used **only via the Claude Code CLI provider**, never OAuth in-app (Anthropic terms).
+- The CLI must be installed and signed in on the server machine. The Providers panel shows the server host (`/api/claude-code` returns `host`). Docs: `docs/claude-code.md`.
+
+## Dictation engines
+- The `speech` settings section (`src/core/speech.ts`) is separate from `dictation`, because sections are replace-whole. Engines: `deepgram` (streaming, unchanged), `whisper-local`, `openai`.
+- Batch engines record in `useDictation` (the `batchRef` seam in `components/dictation.tsx`), encode WAV (`components/speech-engine.ts`), and `POST /api/stt/transcribe` (`src/server/stt.ts`, 50 MB cap). The engine is read from `GET /api/stt/engine`.
+- whisper-server:
+  - Found on PATH or via `LH_WHISPER_SERVER`. Deliberately **not** a setting, since the API has no auth.
+  - Spawned on 127.0.0.1 and health-gated (`/health`), with `/inference` multipart. Stopped after 10 idle minutes.
+  - Models download from `huggingface.co/ggerganov/whisper.cpp` into `data/whisper/models/`. The default is `large-v3-turbo-q5_0`.
+- The target server has a GTX 1660 Ti; install the AUR package `whisper.cpp-cuda`.
+
+## Visual identity
+- `appearance.uiStyle` is `editorial` (default) or `classic`, stamped as `<html data-ui-style>`. `--font-ui` reads the runtime variable `--lh-font-ui`. Editorial overrides live at the end of `app/globals.css`.
+- Default theme = warm charcoal with a brass accent; its emphasis inks equal the text color (owner ruling). `Paper` is the light preset; `Classic` is the original palette.
+- `app/globals.css` `:root` must equal `themeVars(DEFAULT_THEME)` (`tests/themes.test.ts`), and `electron/appearance-chrome.cjs` `PRESET_APPEARANCE` must list every preset.
+
+## Working notes
+- Test baseline: `npm test` has **4 known failures**, the plugin-SDK type tests (`plugin-view-types`, `plugin-document-types`, ~44s each). They fail on clean upstream main too.
+- `npm ci` blocks install scripts for esbuild, unrs-resolver, protobufjs, electron-winstaller and @google/genai. Nothing needed them so far; approving them is the owner's call.
+- Run `npm run plugins:setup` after `npm ci`, or typecheck and tests fail.
+- Only one `next dev` per checkout. `tests/fixtures/golden-data` is a full data dir, good for `LH_DATA_DIR` screenshots.
