@@ -23,7 +23,7 @@ export function formatBytes(bytes: number): string {
 	return `${Math.round(bytes / 1024 ** 2)} MB`;
 }
 
-export const WHISPER_INSTALL_HINT = "Install whisper.cpp on the server so whisper-server is on PATH (Arch/CachyOS: the AUR package whisper.cpp-cuda for NVIDIA GPUs), or set LH_WHISPER_SERVER to its path.";
+export const WHISPER_INSTALL_HINT = "Install whisper.cpp on the server so whisper-server is on PATH (Arch/CachyOS with NVIDIA: sudo pacman -S whisper-cpp ggml-cuda), or set LH_WHISPER_SERVER to its path.";
 
 /** Engine choice + per-engine config (Settings → Providers → Dictation).
  *  The section is replace-whole, so every save sends the full record. */
@@ -115,6 +115,9 @@ export function SpeechEngineSettings({ fetchLike }: { fetchLike?: typeof fetch }
 				<CommitInput value={speech.openaiModel ?? ""} placeholder={DEFAULT_SPEECH.openaiModel} ariaLabel="speech-to-text model" testid="stt-model" onCommit={(next) => save({ ...speech, openaiModel: next || undefined })} />
 			</SettingsRow>
 		</>}
+		{engine !== "deepgram" && <SettingsRow label="Prompt" testid="row-stt-prompt" hint="Optional. A short punctuated sentence in the languages you speak keeps Whisper punctuating and helps it detect the language.">
+			<CommitInput value={speech.prompt ?? ""} placeholder="Привет! Hello, this is dictation." ariaLabel="speech-to-text prompt" testid="stt-prompt" onCommit={(next) => save({ ...speech, prompt: next || undefined })} />
+		</SettingsRow>}
 		{error && <p role="alert" className="px-1 text-xs text-error">{error}</p>}
 	</>;
 }

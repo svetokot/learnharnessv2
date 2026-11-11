@@ -43,8 +43,8 @@ Four features were added on top of upstream LearnHarness 0.6.0. Branches are sta
 - whisper-server:
   - Found on PATH or via `LH_WHISPER_SERVER`. Deliberately **not** a setting, since the API has no auth.
   - Spawned on 127.0.0.1 and health-gated (`/health`), with `/inference` multipart. Stopped after 10 idle minutes.
-  - Models download from `huggingface.co/ggerganov/whisper.cpp` into `data/whisper/models/`. The default is `large-v3-turbo-q5_0`.
-- The target server has a GTX 1660 Ti; install the AUR package `whisper.cpp-cuda`.
+  - Models download from `huggingface.co/ggerganov/whisper.cpp` into `data/whisper/models/`. The default is `large-v3-turbo-q8_0` (benchmarked fastest-and-most-faithful on the 1660 Ti; f16 is ~3× slower without tensor cores). An optional `speech.prompt` (punctuated bilingual text) is sent as Whisper's initial prompt.
+- The target server has a GTX 1660 Ti. Installed there: official `whisper-cpp` 1.9.5 + `ggml-cuda` (CUDA 13), giving `/usr/bin/whisper-server`. Owner setup: engine `whisper-local`, model q8_0, language `multi` (Russian + English), bilingual prompt.
 
 ## Visual identity
 - `appearance.uiStyle` is `editorial` (default) or `classic`, stamped as `<html data-ui-style>`. `--font-ui` reads the runtime variable `--lh-font-ui`. Editorial overrides live at the end of `app/globals.css`.

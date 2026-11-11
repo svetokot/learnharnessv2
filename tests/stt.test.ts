@@ -200,3 +200,29 @@ describe("transcription route is exempt from Proxy body cloning", () => {
 		mkdirSync(tmpdir(), { recursive: true });
 	});
 });
+
+describe("Whisper prompt", () => {
+	const wav = encodeWav([Int16Array.of(0, 1)]);
+	it("is optional, bounded, and sent to both Whisper engines", async () => {
+		assert.deepEqual(parseSpeechSettingsBody({ prompt: "  Привет! Hello.  " }), { ok: true, settings: { prompt: "Привет! Hello." } });
+		assert.deepEqual(parseSpeechSettingsBody({ prompt: "" }), { ok: true, settings: {} });
+		assert.equal(parseSpeechSettingsBody({ prompt: "x".repeat(501) }).ok, false);
+		assert.equal(sanitizeSpeechSettings({ prompt: 5 }).prompt, undefined);
+		const forms: FormData[] = [];
+		const fetchLike = (async (_url: string, init: RequestInit) => { forms.push(init.body as FormData); return Response.json({ text: "ok" }); }) as unknown as typeof fetch;
+		await transcribe(wav, "multi", { fetchLike, speech: { engine: "openai", openaiBaseUrl: "http://127.0.0.1:8000/v1", prompt: "Привет! Hello." } });
+		assert.equal(forms[0]!.get("prompt"), "Привет! Hello.");
+		await transcribe(wav, "multi", { fetchLike, speech: { engine: "openai", openaiBaseUrl: "http://127.0.0.1:8000/v1" } });
+		assert.equal(forms[1]!.get("prompt"), null);
+	});
+	it("defaults to the benchmarked q8_0 turbo model", () => {
+		assert.equal(DEFAULT_SPEECH.whisperModel, "large-v3-turbo-q8_0");
+	});
+});
+
+describe("segment joining", () => {
+	it("joins whisper-server's newline-separated segments into one line", async () => {
+		const fetchLike = (async () => Response.json({ text: " Первая фраза.\n Second sentence,\n и ещё. " })) as unknown as typeof fetch;
+		assert.equal(await transcribe(encodeWav([Int16Array.of(1)]), "multi", { fetchLike, speech: { engine: "openai", openaiBaseUrl: "http://127.0.0.1:8000/v1" } }), "Первая фраза. Second sentence, и ещё.");
+	});
+});

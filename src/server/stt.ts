@@ -151,13 +151,22 @@ export function createWhisperManager(options: WhisperManagerOptions = {}) {
 	};
 }
 
-let manager: ReturnType<typeof createWhisperManager> | null = null;
+/** Process-wide singletons on globalThis (the web-subscriptions pattern):
+ *  route bundles and dev HMR can instantiate this module more than once,
+ *  and each copy must not spawn its own whisper-server. */
+const KEY = Symbol.for("lh.stt");
+function registry(): { manager?: ReturnType<typeof createWhisperManager>; downloader?: ReturnType<typeof createModelDownloader> } {
+	const global = globalThis as typeof globalThis & { [KEY]?: ReturnType<typeof registry> };
+	return (global[KEY] ??= {});
+}
 export function whisperManager() {
-	if (!manager) {
-		manager = createWhisperManager();
-		process.once("exit", () => manager?.stop());
+	const state = registry();
+	if (!state.manager) {
+		const manager = createWhisperManager();
+		state.manager = manager;
+		process.once("exit", () => manager.stop());
 	}
-	return manager;
+	return state.manager;
 }
 
 /** Model downloads: one at a time, streamed to .part and renamed. */
@@ -208,8 +217,7 @@ export function createModelDownloader({ fetchLike = fetch, dir = whisperModelsDi
 		},
 	};
 }
-let downloader: ReturnType<typeof createModelDownloader> | null = null;
-export function whisperDownloader() { return (downloader ??= createModelDownloader()); }
+export function whisperDownloader() { return (registry().downloader ??= createModelDownloader()); }
 
 export function whisperStatus() {
 	const speech = resolveSpeech(settingsStore.readSettings()?.speech);
@@ -229,7 +237,9 @@ async function readText(response: Response): Promise<string> {
 		throw new SttError(`Transcription failed (HTTP ${response.status})${typeof detail === "string" ? `: ${detail.slice(0, 200)}` : ""}`);
 	}
 	if (typeof body?.text !== "string") throw new SttError("The engine returned no text.");
-	return body.text.trim();
+	// whisper-server separates segments with newlines; a dictation is one
+	// run of text in the draft.
+	return body.text.replace(/\s*\n\s*/g, " ").trim();
 }
 
 function audioForm(wav: Uint8Array, fields: Record<string, string>): FormData {
@@ -250,7 +260,7 @@ export async function transcribe(wav: Uint8Array, language: string, deps: { fetc
 		const response = await fetchLike(`${speech.openaiBaseUrl}/audio/transcriptions`, {
 			method: "POST",
 			headers: key ? { Authorization: `Bearer ${key}` } : {},
-			body: audioForm(wav, { model: speech.openaiModel, response_format: "json", ...(lang === "auto" ? {} : { language: lang }) }),
+			body: audioForm(wav, { model: speech.openaiModel, response_format: "json", ...(lang === "auto" ? {} : { language: lang }), ...(speech.prompt ? { prompt: speech.prompt } : {}) }),
 			signal: AbortSignal.timeout(TRANSCRIBE_TIMEOUT_MS),
 		}).catch(() => { throw new SttError("The speech-to-text endpoint could not be reached."); });
 		return readText(response);
@@ -265,7 +275,7 @@ export async function transcribe(wav: Uint8Array, language: string, deps: { fetc
 		try {
 			const response = await fetchLike(`http://127.0.0.1:${port}/inference`, {
 				method: "POST",
-				body: audioForm(wav, { language: lang, response_format: "json", temperature: "0" }),
+				body: audioForm(wav, { language: lang, response_format: "json", temperature: "0", ...(speech.prompt ? { prompt: speech.prompt } : {}) }),
 				signal: AbortSignal.timeout(TRANSCRIBE_TIMEOUT_MS),
 			}).catch(() => { throw new SttError("whisper-server stopped answering."); });
 			return await readText(response);

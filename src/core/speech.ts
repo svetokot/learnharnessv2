@@ -37,11 +37,15 @@ export const WHISPER_MODELS = [
 	{ id: "small", label: "small", bytes: 487601967 },
 	{ id: "medium", label: "medium", bytes: 1533763059 },
 	{ id: "large-v3-turbo-q5_0", label: "large-v3-turbo (q5_0)", bytes: 574041195 },
+	{ id: "large-v3-turbo-q8_0", label: "large-v3-turbo (q8_0)", bytes: 874188075 },
 	{ id: "large-v3-turbo", label: "large-v3-turbo", bytes: 1624555275 },
 	{ id: "large-v3", label: "large-v3", bytes: 3095033483 },
 ] as const;
 export type WhisperModel = (typeof WHISPER_MODELS)[number]["id"];
-export const DEFAULT_WHISPER_MODEL: WhisperModel = "large-v3-turbo-q5_0";
+/** Benchmarked on a GTX 1660 Ti (no tensor cores, 2026-11-11): q8_0 runs
+ *  as fast as q5_0 (~10–13× realtime) and transcribes Russian more
+ *  faithfully; f16 is ~3× slower there. ~1.2 GB VRAM. */
+export const DEFAULT_WHISPER_MODEL: WhisperModel = "large-v3-turbo-q8_0";
 
 export function whisperModelUrl(model: WhisperModel): string {
 	return `https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-${model}.bin`;
@@ -64,7 +68,13 @@ export interface SpeechSettings {
 	/** OpenAI-compatible base URL, e.g. http://127.0.0.1:8000/v1 */
 	openaiBaseUrl?: string;
 	openaiModel?: string;
+	/** Initial prompt for the Whisper engines. Punctuated text in the
+	 *  learner's languages keeps Whisper punctuating (it otherwise can lapse
+	 *  into an unpunctuated lowercase run) and biases language detection. */
+	prompt?: string;
 }
+
+export const MAX_SPEECH_PROMPT = 500;
 
 export const DEFAULT_SPEECH: Required<Pick<SpeechSettings, "engine" | "whisperModel" | "openaiModel">> = {
 	engine: "deepgram",
@@ -95,6 +105,7 @@ export function sanitizeSpeechSettings(raw: unknown): SpeechSettings {
 	const base = normalizeSpeechBaseUrl(r.openaiBaseUrl);
 	if (base) out.openaiBaseUrl = base;
 	if (typeof r.openaiModel === "string" && r.openaiModel.trim() && r.openaiModel.length <= 200) out.openaiModel = r.openaiModel.trim();
+	if (typeof r.prompt === "string" && r.prompt.trim() && r.prompt.length <= MAX_SPEECH_PROMPT) out.prompt = r.prompt.trim();
 	return out;
 }
 
@@ -104,6 +115,7 @@ export function resolveSpeech(settings: SpeechSettings | undefined) {
 		whisperModel: settings?.whisperModel ?? DEFAULT_SPEECH.whisperModel,
 		openaiBaseUrl: settings?.openaiBaseUrl ?? null,
 		openaiModel: settings?.openaiModel ?? DEFAULT_SPEECH.openaiModel,
+		prompt: settings?.prompt ?? null,
 	};
 }
 

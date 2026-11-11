@@ -32,7 +32,7 @@ import { isUiStyle, BACKGROUND_MODEL_ROLES, CACHE_RETENTIONS, COMPACTION_THRESHO
 import { WRITABLE_TOOL_KEYS } from "../core/pending.ts";
 import { isSearchEngineId, SEARCH_ENGINES } from "../core/search.ts";
 import { isDictationLanguage } from "../core/dictation.ts";
-import { isSpeechEngine, isWhisperModel, normalizeSpeechBaseUrl, type SpeechSettings } from "../core/speech.ts";
+import { isSpeechEngine, isWhisperModel, MAX_SPEECH_PROMPT, normalizeSpeechBaseUrl, type SpeechSettings } from "../core/speech.ts";
 import { parseFileAccessSettings } from "../core/file-access.ts";
 
 /** Parsed-or-rejected — `ok: false` carries the 400's error message. */
@@ -474,6 +474,10 @@ export function parseSpeechSettingsBody(body: unknown): SettingsBodyResult<Speec
 	if (raw.openaiModel !== undefined && raw.openaiModel !== "") {
 		if (typeof raw.openaiModel !== "string" || raw.openaiModel.trim().length === 0 || raw.openaiModel.length > 200) return { ok: false, error: "The model must be a short name" };
 		settings.openaiModel = raw.openaiModel.trim();
+	}
+	if (raw.prompt !== undefined && raw.prompt !== "") {
+		if (typeof raw.prompt !== "string" || raw.prompt.trim().length === 0 || raw.prompt.length > MAX_SPEECH_PROMPT) return { ok: false, error: `The prompt must be text of at most ${MAX_SPEECH_PROMPT} characters` };
+		settings.prompt = raw.prompt.trim();
 	}
 	return { ok: true, settings };
 }
