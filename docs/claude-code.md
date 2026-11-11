@@ -13,6 +13,20 @@ The minimum version is **2.1.259** ([contract](../src/core/contracts/claude-code
 
 Install, update, sign in, and change CLI accounts externally. LearnHarness has no CLI account-status or reauthentication control. Disabling the opt-in blocks future requests without rewriting model selections or signing out the CLI; it does not interrupt an already admitted turn. Use normal cancellation for running work.
 
+## Your Claude subscription on a headless or remote server
+
+This is the way to use a Claude Pro or Max subscription in LearnHarness. LearnHarness does not sign in to Claude itself; the CLI does, with its own supported login.
+
+When the server runs on another machine ([remote server](remote.md)), everything above happens **on that machine**:
+
+1. SSH into the server as the user that runs LearnHarness.
+2. Install Claude Code there (see the [setup guide](https://code.claude.com/docs/en/setup)) and make sure `claude` is on that user's `PATH` for the service. A systemd user unit inherits a minimal environment: set `Environment=PATH=…` if the executable lives in a user directory.
+3. Run `claude` once and sign in with your Claude account. Sign-in is stored for that OS user.
+4. In the desktop app (connected to the server): **Settings → Providers → External CLI → Claude Code**, turn it on and press **Check again**. The panel shows the server's host name so you can tell which machine was checked.
+5. Choose an `opus`, `sonnet`, or `haiku` Claude Code model.
+
+The status check runs `--version` only; a failing first request usually means the CLI isn't signed in for the service's user.
+
 ## What goes through the CLI
 
 LearnHarness keeps control of its agent loop, tools, questions, saved history, and jobs. It supplies prompts, relevant history, and tool results to the CLI's configured service.

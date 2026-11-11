@@ -37,7 +37,7 @@ for (const headers of [{}, { origin: "http://localhost:3000", "sec-fetch-site": 
 	const response = await claudeCodeInstallationResponse(request(headers), async () => { probes++; return status; });
 	assert.equal(response.status, 200); assert.equal(probes, 1);
 	assert.equal(response.headers.get("cache-control"), "no-store");
-	assert.deepEqual(await response.json(), status);
+	assert.deepEqual(await response.json(), { ...status, host: (await import("node:os")).hostname() });
 });
 
 test("a forged forwarded origin cannot authorize a foreign Origin header", async () => {

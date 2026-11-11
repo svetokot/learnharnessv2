@@ -1,3 +1,4 @@
+import os from "node:os";
 import { inspectClaudeInstallation } from "../agent/claude-code/installation.ts";
 import { initAuthEnv } from "./keys.ts";
 import { subscriptionRequestOrigin } from "./web-subscription-http.ts";
@@ -26,5 +27,5 @@ export async function claudeCodeInstallationResponse(
 		return Response.json({ error: "Claude Code checks require a same-origin LearnHarness request." }, { status: 403, headers });
 	}
 	if (!enabled()) return Response.json({ error: "Claude Code is disabled." }, { status: 403, headers });
-	return Response.json(await inspect(), { headers });
+	return Response.json({ ...(await inspect()), host: os.hostname() }, { headers });
 }

@@ -85,6 +85,7 @@ export function ClaudeCodeInstallationStatus() {
 			if (!["not-found", "meets-minimum", "update-required", "version-unchecked"].includes(value.state)
 				|| value.minimumVersion !== CLAUDE_CODE_MINIMUM_VERSION
 				|| (value.version !== null && (typeof value.version !== "string" || !/^\d+\.\d+\.\d+$/.test(value.version)))) throw new Error("invalid status");
+			if (value.host !== undefined && (typeof value.host !== "string" || value.host.length > 255)) throw new Error("invalid status");
 			if (!controller.signal.aborted) setStatus(value);
 		} catch {
 			if (!controller.signal.aborted) setStatus(null);
@@ -100,7 +101,7 @@ export function ClaudeCodeInstallationStatus() {
 
 	return <div className="space-y-2" data-testid="claude-code-installation">
 		<div className="flex items-center gap-3">
-			<span className="font-prose text-(length:--lh-prose-size) text-foreground">Claude Code</span>
+			<span className="font-prose text-(length:--lh-prose-size) text-foreground">Claude Code <span className="text-muted-foreground">· Claude Pro/Max subscription</span></span>
 			<Toggle label="Claude Code" checked={enabled} disabled={!loaded || saving} onChange={(next) => void save(next)} />
 		</div>
 		{error && <p role="alert" className="text-xs text-error">{error}</p>}
@@ -110,6 +111,12 @@ export function ClaudeCodeInstallationStatus() {
 				<Button type="button" size="xs" variant="outline" className="cursor-pointer disabled:cursor-not-allowed" disabled={busy} onClick={() => void refresh()} data-testid="claude-code-check-again">Check again</Button>
 			</div>
 			<p className="text-xs leading-relaxed text-muted-foreground"><strong className="font-medium">Install and authenticate Claude Code in your terminal, then select a Claude Code model here.</strong> LearnHarness starts it when needed—no background process required.</p>
+			{status?.host && <p className="text-xs leading-relaxed text-muted-foreground" data-testid="claude-code-host">Runs on the server machine <span className="font-ui text-foreground">{status.host}</span>. Sign in there, under the user that runs LearnHarness.</p>}
+			<ol className="list-decimal space-y-1 pl-5 text-xs leading-relaxed text-muted-foreground" data-testid="claude-code-steps">
+				<li>On the server machine (over SSH is fine), install Claude Code from the Setup guide.</li>
+				<li>Run <code className="font-ui text-foreground">claude</code> once and sign in with your Claude Pro or Max account. Usage then counts against that subscription.</li>
+				<li>Press Check again, then choose an <code className="font-ui text-foreground">opus</code>, <code className="font-ui text-foreground">sonnet</code>, or <code className="font-ui text-foreground">haiku</code> model under Models.</li>
+			</ol>
 			<p className="text-xs leading-relaxed text-muted-foreground">Checks installation/version only—not authentication, model access, or quota. Claude Code controls billing. Requires v{CLAUDE_CODE_MINIMUM_VERSION}+. <a href="https://code.claude.com/docs/en/setup" target="_blank" rel="noreferrer" className="underline underline-offset-2 hover:text-foreground">Setup ↗</a></p>
 			<p className="text-xs leading-relaxed text-muted-foreground">Verify AI claims independently—they may be inaccurate, incomplete, misleading, or outdated.</p>
 		</>}

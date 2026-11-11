@@ -5,6 +5,9 @@ export interface ClaudeCodeStatus {
 	state: "not-found" | "meets-minimum" | "update-required" | "version-unchecked";
 	version: string | null;
 	minimumVersion: string;
+	/** The server machine's host name — the CLI runs THERE, which matters
+	 *  when the desktop app is connected to a remote server. */
+	host?: string;
 }
 
 // --permission-prompts none was added in 2.1.259. This is not an official

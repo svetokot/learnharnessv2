@@ -139,3 +139,12 @@ test("persisted toggle updates invalidate shared model availability in both dire
 	await act(async () => toggle().click()); assert.equal(models(), "claude-code:sonnet");
 	await act(async () => toggle().click()); assert.equal(models(), "");
 });
+
+test("names the server host the CLI runs on and lists the subscription setup steps", async () => {
+	fixture(async () => Response.json({ ...status("meets-minimum", "2.1.310"), host: "gpu-box" }));
+	await mount();
+	assert.equal(document.querySelector('[data-testid="claude-code-host"]')?.textContent?.includes("gpu-box"), true);
+	const steps = Array.from(document.querySelectorAll('[data-testid="claude-code-steps"] li')).map((li) => li.textContent ?? "");
+	assert.equal(steps.length, 3);
+	assert.match(steps[1]!, /Claude Pro or Max/);
+});
