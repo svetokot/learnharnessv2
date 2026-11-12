@@ -1,6 +1,6 @@
 [package]
 name = "learnharness-desktop"
-version = "0.6.0"
+version = "0.6.1"
 description = "LearnHarness desktop client (Tauri): connects to a LearnHarness server"
 license = "AGPL-3.0-only"
 edition = "2021"

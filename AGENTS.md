@@ -16,7 +16,7 @@ Concretely: first investigate and plan rigorously (asking the user design questi
 
 # Project context (fork additions, 2026-11)
 
-Five features were added on top of upstream LearnHarness 0.6.0 and merged into `main` (fast-forward, 2026-11-12) from the stacked branches `feat/remote-client` → `feat/claude-cli-polish` → `feat/stt-engines` → `feat/ui-identity` → `feat/tauri-client`.
+Five features were added on top of upstream LearnHarness 0.6.0 (upstream v0.6.1 merged in since) and merged into `main` (fast-forward, 2026-11-12) from the stacked branches `feat/remote-client` → `feat/claude-cli-polish` → `feat/stt-engines` → `feat/ui-identity` → `feat/tauri-client`.
 
 ## Remote server + desktop client
 - The server runs headless with `npm run build && npm run start:remote`, which binds `0.0.0.0`. There is **no auth** by owner decision: trusted LAN/VPN only. Host names other than IPs and localhost need `LH_ALLOWED_HOSTS`. Setup: `docs/remote.md`.
@@ -65,7 +65,7 @@ Five features were added on top of upstream LearnHarness 0.6.0 and merged into `
 - Note: `/api/events` sends no headers until its first frame (25 s heartbeat) under `next start`, so EventSource `onopen` fires late. This is pre-existing server behavior, not the proxy.
 
 ## Working notes
-- Test baseline: `npm test` has **4 known failures**, the plugin-SDK type tests (`plugin-view-types`, `plugin-document-types`, ~44s each). They fail on clean upstream main too.
+- Test baseline (after merging upstream v0.6.1): `npm test` passes with 0 failures and 4 skipped. Upstream gave the plugin-SDK type tests (`plugin-view-types`, `plugin-document-types`) a 120 s timeout, which fixed the 4 failures seen on 0.6.0.
 - `npm ci` blocks install scripts for esbuild, unrs-resolver, protobufjs, electron-winstaller and @google/genai. Nothing needed them so far; approving them is the owner's call.
 - Run `npm run plugins:setup` after `npm ci`, or typecheck and tests fail.
 - Only one `next dev` per checkout. `tests/fixtures/golden-data` is a full data dir, good for `LH_DATA_DIR` screenshots.
