@@ -16,7 +16,7 @@ Concretely: first investigate and plan rigorously (asking the user design questi
 
 # Project context (fork additions, 2026-11)
 
-Four features were added on top of upstream LearnHarness 0.6.0. Branches are stacked in this order: `feat/remote-client` → `feat/claude-cli-polish` → `feat/stt-engines` → `feat/ui-identity`.
+Five features were added on top of upstream LearnHarness 0.6.0 and merged into `main` (fast-forward, 2026-11-12) from the stacked branches `feat/remote-client` → `feat/claude-cli-polish` → `feat/stt-engines` → `feat/ui-identity` → `feat/tauri-client`.
 
 ## Remote server + desktop client
 - The server runs headless with `npm run build && npm run start:remote`, which binds `0.0.0.0`. There is **no auth** by owner decision: trusted LAN/VPN only. Host names other than IPs and localhost need `LH_ALLOWED_HOSTS`. Setup: `docs/remote.md`.
